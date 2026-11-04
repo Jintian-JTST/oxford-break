@@ -1,17 +1,33 @@
 #!/usr/bin/env python3
-"""Download Oxford from OpenStreetMap (Overpass API) and write oxford_map.json.
+"""Download Oxford from OpenStreetMap (Overpass API) and write game_data.json for the game.
 
 Only needs Python 3.8+, no extra packages.
-Run:  python fetch_oxford.py
-Takes a few minutes. Raw downloads are cached as raw_*.json, so a re-run is instant.
-Coverage: Summertown (north), Christ Church Meadow (south),
-          Oxford station (west), Iffley / Cowley up to Oxford Brookes (east).
+Run (from data/):  python fetch_oxford.py
+Raw downloads are cached in raw/raw_*.json (git-ignored), so re-running to change the crop or the
+conversion is instant; delete raw/ to download again.
 Data (c) OpenStreetMap contributors, ODbL.
+
+Output format (all coordinates in decimetres, x east, z south, origin at the centre of the crop box):
+  s  [width m, height m]
+  c  [x m, z m] of the city centre
+  x  cut-out boxes [[x0, z0, x1, z1] m], left empty and kept out of the camera's reach
+  b  buildings  [ring, 2*height m, kind 0..4 ('crsuo'), name|0, holes|0, extras?{s,c,m,w,wc}]
+  t  trees      [x, z, x, z, ...]
+  w  water      [outer, holes?]
+  r  rivers     [line, width dm]
+  g  green      [ring, 0 grass | 1 pitch]
+  d  roads      [line, width dm, class 0 rail | 1.. ROAD_CLASSES]
 """
 import json, math, os, sys, time, urllib.parse, urllib.request
 
-S, W, N, E = 51.7465, -1.2745, 51.7785, -1.2050      # south, west, north, east
-LAT0, LON0 = (S + N) / 2, (W + E) / 2
+# Download box. Covers Summertown (north) to Christ Church Meadow (south), the station (west) to Cowley (east).
+S, W, N, E = 51.7465, -1.2745, 51.7785, -1.2050
+# Playable area written to game_data.json: the crop box, minus the CUT boxes (each (S, W, N, E)).
+CROP = (S, W, N, E)
+# Marston, Headington and the JR: east of the Cherwell, north of Headington Road. Too big, and not what people come for.
+CUT = [(51.75662, -1.24192, N, E)]
+
+LAT0, LON0 = (CROP[0] + CROP[2]) / 2, (CROP[1] + CROP[3]) / 2
 KX, KZ = 111320 * math.cos(math.radians(LAT0)), 110574  # metres per degree
 MIRRORS = ["https://overpass-api.de/api/interpreter",
            "https://overpass.kumi.systems/api/interpreter",
@@ -30,13 +46,15 @@ QUERIES = {
               f'living_street|service|pedestrian|footway|cycleway|path|track|steps)$"]{BB};'
               f'way["railway"="rail"]{BB};'),
 }
+RAW = os.path.join(os.path.dirname(os.path.abspath(__file__)), "raw")
 
 
 def fetch(name):
-    cache = f"raw_{name}.json"
+    cache = os.path.join(RAW, f"raw_{name}.json")
     if os.path.exists(cache):
         print(f"[{name}] using cache")
         return json.load(open(cache, encoding="utf-8"))
+    os.makedirs(RAW, exist_ok=True)
     q = f"[out:json][timeout:240];({QUERIES[name]});out geom;"
     body = urllib.parse.urlencode({"data": q}).encode()
     for attempt in range(6):
@@ -57,6 +75,22 @@ def fetch(name):
 
 def proj(p):
     return (round((p["lon"] - LON0) * KX, 1), round(-(p["lat"] - LAT0) * KZ, 1))
+
+
+def box_xz(b):
+    s, w, n, e = b
+    return ((w - LON0) * KX, -(n - LAT0) * KZ, (e - LON0) * KX, -(s - LAT0) * KZ)
+
+
+CROP_XZ = box_xz(CROP)
+CUT_XZ = [box_xz(c) for c in CUT]
+
+
+def keep(x, z):
+    x0, z0, x1, z1 = CROP_XZ
+    if not (x0 <= x <= x1 and z0 <= z <= z1):
+        return False
+    return not any(a <= x <= c and b <= z <= d for a, b, c, d in CUT_XZ)
 
 
 def way_pts(el):
@@ -106,6 +140,10 @@ def area(r):
     return abs(sum(r[i][0] * r[(i + 1) % len(r)][1] - r[(i + 1) % len(r)][0] * r[i][1] for i in range(len(r)))) / 2
 
 
+def centroid(r):
+    return sum(p[0] for p in r) / len(r), sum(p[1] for p in r) / len(r)
+
+
 def polys(el):
     """-> list of (outer, [holes])"""
     if el["type"] == "way":
@@ -150,12 +188,9 @@ def simp_ring(r, eps):
     return s if len(s) >= 3 else r
 
 
-def simp_line(l, eps):
-    return dp(l, eps)
-
-
-def flat(pts):
-    return [v for p in pts for v in p]
+def dm(pts):
+    """flat list of decimetre ints"""
+    return [int(round(v * 10)) for p in pts for v in p[:2]]
 
 
 def num(v):
@@ -163,6 +198,34 @@ def num(v):
         return float(str(v).lower().replace("m", "").replace(",", ".").split()[0])
     except Exception:
         return None
+
+
+def clip_line(pts):
+    """split a polyline into the runs that lie in the playable area"""
+    runs, cur = [], []
+    for p in pts:
+        if keep(*p):
+            cur.append(p)
+        else:
+            if len(cur) > 1:
+                runs.append(cur)
+            cur = []
+    if len(cur) > 1:
+        runs.append(cur)
+    return runs
+
+
+# ---------- buildings ----------
+def underground(t):
+    """Gladstone Link, tunnels and other things OSM maps below ground."""
+    if t.get("location") in ("underground", "indoor"):
+        return True
+    if t.get("building") in ("tunnel", "underground", "no", "construction_site"):
+        return True
+    lay = num(t.get("layer", ""))
+    if lay is not None and lay < 0 and not any(k.startswith("roof:") for k in t):   # a mapped roof means it shows
+        return True
+    return t.get("building:levels") == "0" and bool(t.get("building:levels:underground"))
 
 
 def b_height(t):
@@ -176,7 +239,7 @@ def b_height(t):
     if b in ("house", "detached", "semidetached_house", "terrace", "bungalow", "residential"):
         return 6.5
     if b in ("garage", "garages", "shed", "carport", "roof", "greenhouse", "hut", "kiosk", "cabin", "service"):
-        return 3.2
+        return 3
     if b in ("church", "chapel", "cathedral", "college", "university"):
         return 13
     if b in ("apartments", "dormitory", "hotel", "hospital", "office", "commercial", "retail", "school"):
@@ -188,118 +251,178 @@ def b_kind(t):
     b = t.get("building", "")
     am = t.get("amenity", "")
     if b in ("church", "chapel", "cathedral") or am == "place_of_worship":
-        return "c"
-    if b in ("college", "university", "dormitory") or am in ("college", "university"):
-        return "u"
+        return 0
     if b in ("house", "detached", "semidetached_house", "terrace", "bungalow", "residential", "apartments"):
-        return "r"
+        return 1
     if b in ("garage", "garages", "shed", "carport", "roof", "greenhouse", "hut", "kiosk", "cabin", "service"):
-        return "s"
-    return "o"
+        return 2
+    if b in ("college", "university", "dormitory") or am in ("college", "university"):
+        return 3
+    return 4
 
 
-def sample_poly(outer, step, cap):
-    xs = [p[0] for p in outer]
-    zs = [p[1] for p in outer]
-    pts = []
-    x = min(xs)
-    k = 0
-    while x <= max(xs):
-        z = min(zs) + (k % 2) * step / 2
-        while z <= max(zs):
-            jx = ((int(x * 7 + z * 13) % 100) / 100 - .5) * step * .6
-            jz = ((int(x * 11 + z * 5) % 100) / 100 - .5) * step * .6
-            if inside((x, z), outer):
-                pts.append((round(x + jx, 1), round(z + jz, 1), 0))
-            z += step
-        x += step
-        k += 1
-    return pts[:cap]
+COLOURS = {"white": 0xffffff, "black": 0x000000, "grey": 0x808080, "gray": 0x808080, "silver": 0xc0c0c0,
+           "red": 0xa0453a, "brown": 0x7a5a44, "beige": 0xd8c9a8, "yellow": 0xd6c27a, "green": 0x6aa392,
+           "blue": 0x5a7690, "darkgrey": 0x555555, "darkgray": 0x555555, "lightgrey": 0xc8c8c8,
+           "lightgray": 0xc8c8c8, "cream": 0xe8dfc4, "tan": 0xc8a878, "orange": 0xc07040}
+ROOF_MAT = ("slate", "tile", "concrete", "metal", "copper", "tar_paper", "glass", "stone")
+WALL_MAT = {"brick": "b", "stone": "s", "sandstone": "s", "limestone": "s", "plaster": "p", "render": "p",
+            "concrete": "c"}
 
 
-def sample_line(l, step):
-    out = []
-    carry = 0
-    for a, b in zip(l, l[1:]):
-        d = math.hypot(b[0] - a[0], b[1] - a[1])
-        t = carry
-        while t < d:
-            out.append((round(a[0] + (b[0] - a[0]) * t / d, 1), round(a[1] + (b[1] - a[1]) * t / d, 1), 0))
-            t += step
-        carry = t - d
-    return out
+def colour(v):
+    v = (v or "").strip().lower()
+    if v.startswith("#") and len(v) in (4, 7):
+        v = v[1:]
+        if len(v) == 3:
+            v = "".join(c * 2 for c in v)
+        try:
+            return int(v, 16)
+        except ValueError:
+            return None
+    return COLOURS.get(v)
+
+
+def extras(t):
+    ex = {}
+    s = {"flat": "f", "gabled": "g", "hipped": "h"}.get(t.get("roof:shape"))
+    if s:
+        ex["s"] = s
+    c = colour(t.get("roof:colour"))
+    if c is not None:
+        ex["c"] = c
+    if t.get("roof:material") in ROOF_MAT:
+        ex["m"] = t["roof:material"]
+    w = WALL_MAT.get(t.get("building:material"))
+    if w:
+        ex["w"] = w
+    wc = colour(t.get("building:colour"))
+    if wc is not None:
+        ex["wc"] = wc
+    return ex
+
+
+ROAD_CLASSES = ["motorway", "trunk", "primary", "secondary", "tertiary", "unclassified", "residential",
+                "living_street", "service", "pedestrian", "footway", "cycleway", "path", "track", "steps"]
+ROAD_W = {"motorway": 4, "trunk": 4, "primary": 4, "secondary": 3.5, "tertiary": 3, "unclassified": 2.6,
+          "residential": 2.6, "living_street": 2.2, "service": 1.8, "pedestrian": 1.6, "footway": .9,
+          "cycleway": 1, "path": .8, "track": 1.2, "steps": .7}
 
 
 def main():
     raw = {n: fetch(n) for n in QUERIES}
-    out = {"bbox": [S, W, N, E], "origin": [LAT0, LON0],
-           "size": [round((E - W) * KX), round((N - S) * KZ)],
-           "buildings": [], "trees": [], "water": [], "rivers": [], "green": [], "roads": []}
+    x0, z0, x1, z1 = CROP_XZ
+    cen = proj({"lat": 51.75223, "lon": -1.25774})   # Carfax: buildings get taller and roofs older towards it
+    out = {"s": [round(x1 - x0), round(z1 - z0)], "c": [round(cen[0]), round(cen[1])],
+           "x": [[round(v) for v in c] for c in CUT_XZ],
+           "b": [], "t": [], "w": [], "r": [], "g": [], "d": []}
+    skipped = []
 
     for el in raw["buildings"]["elements"]:
         t = el.get("tags", {})
+        if underground(t):
+            skipped.append(t.get("name") or t.get("building"))
+            continue
         for outer, holes in polys(el):
             a = area(outer)
-            if a < 12:
+            if a < 12 or not keep(*centroid(outer)):
                 continue
-            o = simp_ring(outer, .5)
-            b = {"p": flat(o), "h": b_height(t), "k": b_kind(t)}
-            if holes:
-                b["o"] = [flat(simp_ring(h, .5)) for h in holes]
-            nm = t.get("name")
-            if nm and a > 250:
-                b["n"] = nm[:40]
-            out["buildings"].append(b)
+            nm = t.get("name") if a > 250 else None
+            rec = [dm(simp_ring(outer, .5)), int(round(b_height(t) * 2)), b_kind(t), (nm or "")[:40] or 0]
+            hs = [dm(simp_ring(h, .5)) for h in holes]
+            ex = extras(t)
+            if hs or ex:
+                rec.append(hs or 0)
+            if ex:
+                rec.append(ex)
+            out["b"].append(rec)
 
     seen = set()
+    trees = []
     for el in raw["trees"]["elements"]:
         t = el.get("tags", {})
         if el["type"] == "node":
-            p = proj(el)
-            h = num(t.get("height", "")) or 0
-            out["trees"].append((p[0], p[1], round(h, 1)))
+            trees.append(proj(el))
         elif t.get("natural") == "tree_row":
-            out["trees"] += sample_line(way_pts(el), 7)
+            pts, l = way_pts(el), []
+            carry = 0
+            for a, b in zip(pts, pts[1:]):
+                d = math.hypot(b[0] - a[0], b[1] - a[1])
+                s = carry
+                while s < d:
+                    l.append((a[0] + (b[0] - a[0]) * s / d, a[1] + (b[1] - a[1]) * s / d))
+                    s += 7
+                carry = s - d
+            trees += l
         else:
             for outer, _ in polys(el):
-                out["trees"] += sample_poly(outer, 8, 4000)
-    out["trees"] = [t for t in out["trees"] if not ((t[0], t[1]) in seen or seen.add((t[0], t[1])))]
+                xs, zs = [p[0] for p in outer], [p[1] for p in outer]
+                x, k, n = min(xs), 0, 0
+                while x <= max(xs) and n < 4000:
+                    z = min(zs) + (k % 2) * 4
+                    while z <= max(zs):
+                        jx = ((int(x * 7 + z * 13) % 100) / 100 - .5) * 4.8
+                        jz = ((int(x * 11 + z * 5) % 100) / 100 - .5) * 4.8
+                        if inside((x, z), outer):
+                            trees.append((x + jx, z + jz))
+                            n += 1
+                        z += 8
+                    x += 8
+                    k += 1
+    for x, z in trees:
+        key = (round(x * 10), round(z * 10))
+        if key in seen or not keep(x, z):
+            continue
+        seen.add(key)
+        out["t"] += key
 
     for el in raw["water"]["elements"]:
         t = el.get("tags", {})
+        if t.get("tunnel") in ("yes", "culvert") or t.get("location") == "underground":
+            continue
         if t.get("waterway"):
             w = {"river": 14, "canal": 8, "stream": 3, "ditch": 1.5}.get(t["waterway"], 3)
             if t.get("width") and num(t["width"]):
                 w = num(t["width"])
-            out["rivers"].append({"p": flat(simp_line(way_pts(el), .8)), "w": w})
+            for run in clip_line(dp(way_pts(el), .8)):
+                out["r"].append([dm(run), int(round(w * 10))])
         else:
             for outer, holes in polys(el):
-                out["water"].append({"p": flat(simp_ring(outer, .8))})
+                if not keep(*centroid(outer)):
+                    continue
+                rec = [dm(simp_ring(outer, .8))]
+                hs = [dm(simp_ring(h, .8)) for h in holes if area(h) > 20]
+                if hs:
+                    rec.append(hs)
+                out["w"].append(rec)
 
     for el in raw["green"]["elements"]:
         t = el.get("tags", {})
-        kind = "pitch" if t.get("leisure") == "pitch" else "grass"
+        kind = 1 if t.get("leisure") == "pitch" else 0
         for outer, holes in polys(el):
-            if area(outer) > 30:
-                out["green"].append({"p": flat(simp_ring(outer, 1)), "t": kind})
+            if area(outer) > 30 and keep(*centroid(outer)):
+                out["g"].append([dm(simp_ring(outer, 1)), kind])
 
-    cls = {"motorway": 4, "trunk": 4, "primary": 4, "secondary": 3.5, "tertiary": 3, "unclassified": 2.6,
-           "residential": 2.6, "living_street": 2.2, "service": 1.8, "pedestrian": 1.6, "footway": .9,
-           "cycleway": 1, "path": .8, "track": 1.2, "steps": .7}
     for el in raw["roads"]["elements"]:
         t = el.get("tags", {})
+        if t.get("tunnel") == "yes":
+            continue
         hw = t.get("highway")
         if t.get("railway"):
-            out["roads"].append({"p": flat(simp_line(way_pts(el), 1)), "w": 2.2, "c": "rail"})
-        elif hw:
-            out["roads"].append({"p": flat(simp_line(way_pts(el), .8)), "w": cls.get(hw, 1.5), "c": hw})
+            cls, w = 0, 2.2
+        elif hw in ROAD_W:
+            cls, w = ROAD_CLASSES.index(hw) + 1, ROAD_W[hw]
+        else:
+            continue
+        for run in clip_line(dp(way_pts(el), 1 if cls == 0 else .8)):
+            out["d"].append([dm(run), int(round(w * 10)), cls])
 
-    json.dump(out, open("oxford_map.json", "w", encoding="utf-8"), separators=(",", ":"))
-    mb = os.path.getsize("oxford_map.json") / 1e6
-    print(f"\nDone: oxford_map.json  {mb:.1f} MB")
-    for k in ("buildings", "trees", "water", "rivers", "green", "roads"):
-        print(f"  {k:10s} {len(out[k])}")
-    print("Map size (m):", out["size"])
+    dst = os.path.join(os.path.dirname(os.path.abspath(__file__)), "game_data.json")
+    json.dump(out, open(dst, "w", encoding="utf-8"), separators=(",", ":"), ensure_ascii=False)
+    print(f"\nDone: game_data.json  {os.path.getsize(dst) / 1e6:.1f} MB, map {out['s']} m")
+    for k in "btwrgd":
+        print(f"  {k} {len(out[k]) // (2 if k == 't' else 1)}")
+    print("skipped underground:", sorted(set(map(str, skipped)))[:30])
 
 
 if __name__ == "__main__":

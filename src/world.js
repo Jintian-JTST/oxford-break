@@ -7,6 +7,7 @@ const hash=(a,b)=>{let h=Math.imul(a|0,374761393)+Math.imul(b|0,668265263)|0;h=M
 const R_BOMB=12;
 const D=JSON.parse($('data').textContent);
 const MW=D.s[0],MH=D.s[1];
+const CEN=D.c||[-1243,1161];        // city centre (Carfax), metres
 const CH=200;                       // chunk size in metres
 const C3=h=>{const c=new THREE.Color(h);return[c.r,c.g,c.b]};
 
@@ -189,7 +190,7 @@ function pickRoof(id,k,cx,cz,ex,lm,flat){
   if(lm&&lm.col!=null)return C3(lm.col);
   if(ex&&ex.c!=null)return C3(ex.c);
   if(ex&&ex.m&&MATC[ex.m]!=null)return C3(MATC[ex.m]);
-  const u=hash(id,2),cen=Math.hypot(cx+1243,cz-1161)<1000;
+  const u=hash(id,2),cen=Math.hypot(cx-CEN[0],cz-CEN[1])<1000;
   if(flat)return FLATC[(u*3)|0];
   if(k===3||k===0)return u<.2?STONESL[(hash(id,3)*2)|0]:SLATE[(hash(id,4)*4)|0];
   if(k===1)return u<(cen?.35:.65)?TILE[(hash(id,4)*4)|0]:SLATE[(hash(id,5)*4)|0];
@@ -335,7 +336,7 @@ function addBuilding(id,raw){
   // OSM has no height for ~93% of Oxford buildings (they carry a type default), so spread them out plausibly.
   if(h0===6.5||h0===8||h0===11||h0===13||h0===3){
     const u=hash(id,5),u2=hash(id,6);
-    const cen=1+Math.max(0,1-Math.hypot(cx+1243,cz-1161)/900)*.35;
+    const cen=1+Math.max(0,1-Math.hypot(cx-CEN[0],cz-CEN[1])/900)*.35;
     if(k===1)h=5.4+u*4.2;
     else if(k===3)h=(9+u*7)*cen;
     else if(k===0)h=12+u*8;
@@ -477,13 +478,15 @@ function paintBuilding(b,s,f){
 /* ---------- ground layers ---------- */
 const gChunks=new Chunks();
 const GRASS=[0x86a869,0x7ea062,0x8fb072].map(C3),PITCH=[0x78b360].map(C3),WATER=C3(0x5b92ab);
-function flatPoly(flat,y,col){
+// holes: optional list of flat rings cut out of the polygon (islands in a river).
+function flatPoly(flat,y,col,holes){
   const n=flat.length/2;if(n<3)return;
-  const pts=[];for(let i=0;i<n;i++)pts.push(new THREE.Vector2(flat[i*2]/10,flat[i*2+1]/10));
-  let tris;try{tris=THREE.ShapeUtils.triangulateShape(pts,[])}catch(e){return}
+  const v2=f=>{const o=[];for(let i=0;i<f.length;i+=2)o.push(new THREE.Vector2(f[i]/10,f[i+1]/10));return o};
+  const pts=v2(flat),hv=(holes||[]).filter(h=>h.length>=6).map(v2);
+  let tris;try{tris=THREE.ShapeUtils.triangulateShape(pts,hv)}catch(e){return}
   if(!tris.length)return;
   const c=gChunks.get(pts[0].x,pts[0].y),base=c.n;
-  for(const p of pts)pushV(c,p.x,y,p.y,0,1,0,col,0,0);
+  for(const p of pts.concat(...hv))pushV(c,p.x,y,p.y,0,1,0,col,0,0);
   for(const t of tris)triFace(c,base+t[0],base+t[1],base+t[2]);
 }
 function ribbon(flat,w,y,col){

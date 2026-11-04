@@ -7,7 +7,7 @@ function buildAll(){
   const ground=new THREE.Mesh(new THREE.PlaneGeometry(MW*2.2,MH*2.2),new THREE.MeshLambertMaterial({color:0x9ba487}));
   ground.rotation.x=-Math.PI/2;ground.position.y=-.03;ground.receiveShadow=true;scene.add(ground);
   D.g.forEach(([p,t],i)=>flatPoly(p,.05+(i%5)*.004,t?PITCH[0]:GRASS[i%3]));
-  D.w.forEach((p,i)=>flatPoly(p,.1+(i%3)*.003,WATER));
+  D.w.forEach(([p,h],i)=>flatPoly(p,.1+(i%3)*.003,WATER,h));
   D.r.forEach(([p,w])=>ribbon(p,Math.max(w/10,2),.12,WATER));
   D.d.forEach(([p,w,c])=>ribbon(p,Math.max(w/10,.7),ROAD_Y[c],ROAD_COL[c]));
   finish(gChunks,gMat,false,true,false);
@@ -21,9 +21,10 @@ const mx=x=>(x+MW/2)/MW*MMW,mz=z=>(z+MH/2)/MH*MMH;
 function drawMini(){
   const g=mmc.getContext('2d');
   g.fillStyle='#8a9a76';g.fillRect(0,0,MMW,MMH);
-  const poly=(f,fill)=>{g.beginPath();for(let i=0;i<f.length;i+=2){const x=mx(f[i]/10),z=mz(f[i+1]/10);i?g.lineTo(x,z):g.moveTo(x,z)}g.closePath();g.fillStyle=fill;g.fill()};
+  const ring=f=>{for(let i=0;i<f.length;i+=2){const x=mx(f[i]/10),z=mz(f[i+1]/10);i?g.lineTo(x,z):g.moveTo(x,z)}g.closePath()};
+  const poly=(f,fill,holes)=>{g.beginPath();ring(f);(holes||[]).forEach(ring);g.fillStyle=fill;g.fill('evenodd')};
   D.g.forEach(([p,t])=>poly(p,t?'#6faa57':'#7ea062'));
-  D.w.forEach(p=>poly(p,'#5b92ab'));
+  D.w.forEach(([p,h])=>poly(p,'#5b92ab',h));
   g.strokeStyle='#5b92ab';
   D.r.forEach(([p,w])=>{g.lineWidth=Math.max(1,w/10*MMW/MW*1.4);g.beginPath();for(let i=0;i<p.length;i+=2){const x=mx(p[i]/10),z=mz(p[i+1]/10);i?g.lineTo(x,z):g.moveTo(x,z)}g.stroke()});
   g.strokeStyle='#d6d1c2';g.lineWidth=.7;
@@ -31,12 +32,15 @@ function drawMini(){
   g.fillStyle='#c9a45e';g.beginPath();
   for(const b of buildings){const r=b.r;for(let i=0;i<r.length;i+=2){const x=mx(r[i]),z=mz(r[i+1]);i?g.lineTo(x,z):g.moveTo(x,z)}g.closePath()}
   g.fill();
+  g.fillStyle='#1c2f45';
+  for(const [x0,z0,x1,z1] of D.x||[])g.fillRect(mx(x0),mz(z0),mx(x1)-mx(x0),mz(z1)-mz(z0));
 }
 const mmDot=$('mmdot');
 function mmJump(e){
   const rc=$('mm').getBoundingClientRect();
   cam.tx=clamp(((e.clientX-rc.left)/rc.width-.5)*MW,-MW/2,MW/2);
   cam.tz=clamp(((e.clientY-rc.top)/rc.height-.5)*MH,-MH/2,MH/2);
+  clampCam();
 }
 let mmDown=false;
 $('mm').addEventListener('pointerdown',e=>{mmDown=true;$('mm').setPointerCapture(e.pointerId);mmJump(e)});
@@ -283,7 +287,18 @@ function placeCam(){
   }
 }
 const SUN_DIR=new THREE.Vector3(-90,170,60).normalize();let lastS=0;
-function clampCam(){cam.tx=clamp(cam.tx,-MW/2,MW/2);cam.tz=clamp(cam.tz,-MH/2,MH/2)}
+// The map can have cut-out corners (D.x); the camera target is pushed out of them along the shorter way.
+const CUTS=D.x||[];
+function clampCam(){
+  cam.tx=clamp(cam.tx,-MW/2,MW/2);cam.tz=clamp(cam.tz,-MH/2,MH/2);
+  for(const [x0,z0,x1,z1] of CUTS){
+    if(cam.tx<=x0||cam.tx>=x1||cam.tz<=z0||cam.tz>=z1)continue;
+    const opts=[[x0-cam.tx,0],[x1-cam.tx,0],[0,z0-cam.tz],[0,z1-cam.tz]]
+      .filter(([dx,dz])=>Math.abs(cam.tx+dx)<=MW/2&&Math.abs(cam.tz+dz)<=MH/2);
+    let b=opts[0];for(const o of opts)if(Math.abs(o[0])+Math.abs(o[1])<Math.abs(b[0])+Math.abs(b[1]))b=o;
+    cam.tx+=b[0];cam.tz+=b[1];
+  }
+}
 function panBy(dx,dy){
   const k=cam.dist*.0016,s=Math.sin(cam.yaw),c=Math.cos(cam.yaw);
   cam.tx+=-c*dx*k+(-s)*dy*k;cam.tz+=s*dx*k+(-c)*dy*k;clampCam();
