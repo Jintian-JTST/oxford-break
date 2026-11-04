@@ -2,7 +2,7 @@
 
 A small browser game: drop bombs on a stylised 3D Oxford built from OpenStreetMap data. 60 seconds per round, chain collapses for a combo multiplier.
 
-**Play:** https://<user>.github.io/oxford-break/ (GitHub Pages, served from `docs/`)
+**Play:** https://jintian-jtst.github.io/oxford-break/ (GitHub Pages, served from `docs/`)
 
 Controls: click/tap to drop · drag to pan · wheel/pinch to zoom · right-drag, Q/E, R/F or two-finger twist to rotate and tilt · Space drops at screen centre · click the minimap to jump.
 
