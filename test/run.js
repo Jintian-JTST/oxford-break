@@ -54,7 +54,14 @@ win.fire('keydown',{code:'KeyE'});step(90);
 console.log('after gun+missile: score',els.hscore.textContent,'dons down',els.hkills.textContent,'mk',els.hmk.textContent);
 win.fire('keydown',{code:'KeyW'});win.fire('keydown',{code:'KeyA'});step(60);
 console.log('manual:',els.hauto.textContent);
-win.fire('keyup',{code:'KeyW'});win.fire('keyup',{code:'KeyA'});step(200);
+// boost: metres covered in 1.5 s of forward flight, without and with F held (minimap dot is in % of the map)
+const mm=()=>[parseFloat(els.mmdot.style.left),parseFloat(els.mmdot.style.top)];
+win.fire('keyup',{code:'KeyA'});step(60);
+let a=mm();step(94);let b=mm();const plain=Math.hypot((b[0]-a[0])*47.88,(b[1]-a[1])*35.38);
+win.fire('keydown',{code:'KeyF'});step(30);a=mm();step(94);b=mm();const fast=Math.hypot((b[0]-a[0])*47.88,(b[1]-a[1])*35.38);
+win.fire('keyup',{code:'KeyF'});
+console.log('boost: 1.5 s forward',plain.toFixed(0),'m plain,',fast.toFixed(0),'m boosted');
+win.fire('keyup',{code:'KeyW'});step(200);
 console.log('after letting go 3.2s:',els.hauto.textContent);
 step(Math.ceil(100/0.016));
 console.log('round end card hidden=',els.card.hidden,'title',els.cardT.textContent,'|',els.cardS.textContent);

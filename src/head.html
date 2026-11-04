@@ -113,6 +113,9 @@ body.mode-menu #menu{display:flex}
 .msl{position:relative;overflow:hidden;background:rgba(120,90,30,.85);border-color:var(--stone)}
 .msl i{position:absolute;left:0;bottom:0;width:100%;height:3px;background:var(--alarm);transform-origin:left;transform:scaleX(var(--cd,0))}
 .msl.cool{color:var(--mute);background:var(--panel)}
+.bst{background:var(--panel);border-color:rgba(255,255,255,.18);touch-action:none}
+.bst i{background:var(--stone);transform:scaleX(var(--en,1))}
+.bst.on{border-color:var(--stone);background:rgba(120,90,30,.85)}
 .hhint{position:fixed;left:max(16px,env(safe-area-inset-left,0px));bottom:14px;z-index:2;font:500 11px/1.5 var(--f-mono);background:var(--panel);padding:8px 12px;border-radius:6px;max-width:300px;pointer-events:none}
 #xhair{position:fixed;left:0;top:0;width:34px;height:34px;margin:-17px 0 0 -17px;border:2px solid rgba(255,255,255,.85);border-radius:50%;z-index:2;pointer-events:none;box-shadow:0 0 0 1px rgba(8,24,48,.5)}
 #xhair::after{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;border-radius:50%;background:var(--alarm)}
@@ -160,8 +163,8 @@ body.mode-heli #c{cursor:none}
   </div>
   <div class="btns"><button id="hmute" type="button">Sound on</button><button id="hmenu" type="button">Menu</button></div>
 </div>
-<div class="hbot heli-only"><span id="hmk">MK I</span><span id="hauto">Autopilot</span><button id="missile" class="msl" type="button">Missile<i></i></button></div>
-<div class="hhint heli-only">Mouse to aim · hold to fire · right-click or E: missile<br>W/S A/D fly · Space / Shift up and down<br>Let go for 3 s and the autopilot takes over</div>
+<div class="hbot heli-only"><span id="hmk">MK I</span><span id="hauto">Autopilot</span><button id="boost" class="msl bst" type="button">Boost<i></i></button><button id="missile" class="msl" type="button">Missile<i></i></button></div>
+<div class="hhint heli-only">Mouse to aim · hold to fire · right-click or E: missile<br>W/S A/D fly · Space / Shift up and down · hold F to boost<br>Let go for 3 s and the autopilot takes over</div>
 <div id="xhair" class="heli-only"></div>
 <div id="joy"><i id="joyk"></i></div>
 <div id="banner" hidden><b id="bannerT"></b><span id="bannerS"></span></div>

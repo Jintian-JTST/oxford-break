@@ -120,6 +120,9 @@ body.mode-menu #menu{display:flex}
 .msl{position:relative;overflow:hidden;background:rgba(120,90,30,.85);border-color:var(--stone)}
 .msl i{position:absolute;left:0;bottom:0;width:100%;height:3px;background:var(--alarm);transform-origin:left;transform:scaleX(var(--cd,0))}
 .msl.cool{color:var(--mute);background:var(--panel)}
+.bst{background:var(--panel);border-color:rgba(255,255,255,.18);touch-action:none}
+.bst i{background:var(--stone);transform:scaleX(var(--en,1))}
+.bst.on{border-color:var(--stone);background:rgba(120,90,30,.85)}
 .hhint{position:fixed;left:max(16px,env(safe-area-inset-left,0px));bottom:14px;z-index:2;font:500 11px/1.5 var(--f-mono);background:var(--panel);padding:8px 12px;border-radius:6px;max-width:300px;pointer-events:none}
 #xhair{position:fixed;left:0;top:0;width:34px;height:34px;margin:-17px 0 0 -17px;border:2px solid rgba(255,255,255,.85);border-radius:50%;z-index:2;pointer-events:none;box-shadow:0 0 0 1px rgba(8,24,48,.5)}
 #xhair::after{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;border-radius:50%;background:var(--alarm)}
@@ -167,8 +170,8 @@ body.mode-heli #c{cursor:none}
   </div>
   <div class="btns"><button id="hmute" type="button">Sound on</button><button id="hmenu" type="button">Menu</button></div>
 </div>
-<div class="hbot heli-only"><span id="hmk">MK I</span><span id="hauto">Autopilot</span><button id="missile" class="msl" type="button">Missile<i></i></button></div>
-<div class="hhint heli-only">Mouse to aim · hold to fire · right-click or E: missile<br>W/S A/D fly · Space / Shift up and down<br>Let go for 3 s and the autopilot takes over</div>
+<div class="hbot heli-only"><span id="hmk">MK I</span><span id="hauto">Autopilot</span><button id="boost" class="msl bst" type="button">Boost<i></i></button><button id="missile" class="msl" type="button">Missile<i></i></button></div>
+<div class="hhint heli-only">Mouse to aim · hold to fire · right-click or E: missile<br>W/S A/D fly · Space / Shift up and down · hold F to boost<br>Let go for 3 s and the autopilot takes over</div>
 <div id="xhair" class="heli-only"></div>
 <div id="joy"><i id="joyk"></i></div>
 <div id="banner" hidden><b id="bannerT"></b><span id="bannerS"></span></div>
@@ -1452,6 +1455,8 @@ const ROUNDS=[
   {name:'Science Area & North',via:['Oxford University Museum of Natural History','Keble College Chapel','Andrew Wiles Building','Radcliffe Observatory','Denys Wilkinson Building','Clarendon Laboratory','Beecroft Building (Physics)']}
 ];
 const ROUND_T=100,HANDBACK=3,AUTO_V=14,CRUISE=48;
+// boost: speed multiplier, seconds a full tank lasts, seconds to refill it, and the level it must refill to after running dry
+const BOOST=2.2,BOOST_T=3,BOOST_FILL=7,BOOST_MIN=.25;
 // firepower by level: gun rounds per second, damage per round, missile arming time
 const MK=[{rate:8,dmg:14,arm:8},{rate:12,dmg:19,arm:6},{rate:16,dmg:25,arm:4}],MK_AT=[0,2500,6000];
 const MISSILE={key:'missile',R:18,dmg:170,fall:.9,shake:.8};
@@ -1538,6 +1543,7 @@ function startRound(i){
   H.round=i;H.route=buildRoute(ROUNDS[i].via);H.s=0;H.t=ROUND_T;H.down0=downCount;H.kills0=H.kills;H.score0=score;
   const [x,z]=routeAt(0),[x2,z2]=routeAt(30);
   H.x=x;H.z=z;H.y=CRUISE;H.vx=H.vy=H.vz=0;H.yaw=Math.atan2(-(x2-x),-(z2-z));H.auto=true;H.idle=0;H.arm=0;H.gunT=0;H.waveT=8;
+  H.en=1;H.boosting=false;H.dry=false;H.fovk=0;
   H.cx=H.x+Math.sin(H.yaw)*45;H.cz=H.z+Math.cos(H.yaw)*45;H.cy=H.y+22;
   H.phase='fly';H.g.visible=true;
   for(let k=0;k<14;k++)spawnArmed(rr()*H.route.len);
@@ -1566,7 +1572,7 @@ function finishCrash(){
   showCard('Shot down','Round '+(H.round+1)+' · '+fmt(score)+' points · '+H.kills+' dons. Best '+fmt(heliBest)+'.','Try again',()=>startCampaign(),'Menu',()=>setMode('menu'));
   saveLife();
 }
-function stopHeli(){H.phase='off';H.firing=false;if(H.g)scene.remove(H.g);clearHeli();$('card').hidden=true}
+function stopHeli(){H.phase='off';H.firing=false;boostBtn=false;resize();if(H.g)scene.remove(H.g);clearHeli();$('card').hidden=true}
 function clearHeli(){
   for(const a of [shots,tracers,missiles])a.splice(0).forEach(o=>{scene.remove(o.m);o.m.material.dispose()});
   for(let i=dons.length-1;i>=0;i--)if(dons[i].st==='arm'){scene.remove(dons[i].g);dons.splice(i,1)}
@@ -1682,6 +1688,10 @@ $('joy').addEventListener('pointermove',joyMove);
 const joyEnd=e=>{if(e.pointerId!==joy.id)return;joy.id=null;joy.x=joy.y=0;$('joyk').style.transform=''};
 $('joy').addEventListener('pointerup',joyEnd);$('joy').addEventListener('pointercancel',joyEnd);
 $('missile').addEventListener('click',()=>{ensureAudio();fireMissile()});
+// Boost is held: F on a keyboard, the Boost button on touch.
+let boostBtn=false;
+$('boost').addEventListener('pointerdown',e=>{e.preventDefault();ensureAudio();boostBtn=true;$('boost').setPointerCapture(e.pointerId)});
+for(const t of ['pointerup','pointercancel'])$('boost').addEventListener(t,()=>{boostBtn=false});
 
 /* per frame */
 function roofUnder(x,z){
@@ -1704,22 +1714,33 @@ function updateHeli(dt){
       if(H.auto)banner('Manual','you have the controls');
       H.auto=false;H.idle=0;
     }else if(!H.auto&&(H.idle+=dt)>HANDBACK){H.auto=true;H.s=nearestS(H.x,H.z);banner('Autopilot','back on the route')}
+    // boost: drains while held, refills when released; once empty it needs BOOST_MIN back before it works again
+    const want_b=keys.has('KeyF')||boostBtn;
+    if(H.dry&&H.en>=BOOST_MIN)H.dry=false;
+    const b=want_b&&!H.dry&&H.en>0;
+    if(b&&!H.boosting)whistle(300,900,.35,.05);
+    H.boosting=b;
+    if(b){H.en-=dt/BOOST_T;if(H.en<=0){H.en=0;H.dry=true}}
+    else H.en=Math.min(1,H.en+dt/BOOST_FILL);
+    const bm=b?BOOST:1;
     const fwx=-Math.sin(H.yaw),fwz=-Math.cos(H.yaw);
     if(H.auto){
       // advance along the route while close to it; aim 40 m ahead
       const [rx,rz]=routeAt(H.s),off=Math.hypot(rx-H.x,rz-H.z);
-      if(off<30)H.s+=AUTO_V*dt;
-      const [tx,tz]=routeAt(H.s+40),want_=Math.atan2(-(tx-H.x),-(tz-H.z));
+      if(off<30)H.s+=AUTO_V*bm*dt;
+      const [tx,tz]=routeAt(H.s+40*bm),want_=Math.atan2(-(tx-H.x),-(tz-H.z));
       let dy=want_-H.yaw;dy=Math.atan2(Math.sin(dy),Math.cos(dy));
       H.yr=clamp(dy*1.5,-1.1,1.1);
-      const v=AUTO_V+Math.min(14,off*.3),k=1-Math.exp(-1.2*dt);
+      const v=AUTO_V*bm+Math.min(14,off*.3),k=1-Math.exp(-(b?2:1.2)*dt);
       H.vx+=(fwx*v-H.vx)*k;H.vz+=(fwz*v-H.vz)*k;
       const want=clamp(Math.max(CRUISE,roofUnder(H.x+fwx*25,H.z+fwz*25)+22),30,85);
       H.vy=clamp((want-H.y)*1.2,-10,10);
       if(H.s>=H.route.len-5)H.t=Math.min(H.t,0);
     }else{
       H.yr=-kt*1.4;
-      H.vx+=fwx*kf*22*dt;H.vz+=fwz*kf*22*dt;
+      // boosting with no forward input still dashes forward
+      const thrust=(b&&kf<.15?1:kf)*22*bm;
+      H.vx+=fwx*thrust*dt;H.vz+=fwz*thrust*dt;
       const dr=Math.exp(-.8*dt);H.vx*=dr;H.vz*=dr;
       // Space / Shift climb and descend; with neither held it hovers at the current height
       H.vy+=((kl?kl*12:0)-H.vy)*(1-Math.exp(-3*dt));
@@ -1785,6 +1806,10 @@ function updateHeli(dt){
   const s=shake*shake*1.4;
   camera.position.set(H.cx+(rr()-.5)*s,H.cy+(rr()-.5)*s,H.cz+(rr()-.5)*s);
   camera.lookAt(H.x-sy*30,H.y-10,H.z-cy*30);
+  // the view widens a little while boosting
+  H.fovk+=((H.boosting?1:0)-H.fovk)*(1-Math.exp(-5*dt));
+  const fov=(innerWidth<innerHeight?62:45)+10*H.fovk;
+  if(Math.abs(camera.fov-fov)>.05){camera.fov=fov;camera.updateProjectionMatrix()}
   cam.tx=H.x-sy*60;cam.tz=H.z-cy*60;cam.dist=150;
   fitShadow(H.x,H.z,150,H.yaw);
   heliHud();
@@ -1800,6 +1825,7 @@ function heliHud(){
   const t=Math.max(0,Math.ceil(H.t));$('htime').textContent=Math.floor(t/60)+':'+String(t%60).padStart(2,'0');
   $('hpv').textContent=Math.ceil(H.hp);$('hpfill').style.transform='scaleX('+(H.hp/100).toFixed(3)+')';
   $('hmk').textContent='MK '+['I','II','III'][H.mk];
+  $('boost').style.setProperty('--en',H.en.toFixed(3));$('boost').classList[H.dry?'add':'remove']('cool');$('boost').classList[H.boosting?'add':'remove']('on');
   $('hauto').textContent=H.auto?'Autopilot':'Manual · autopilot in '+Math.max(0,Math.ceil(HANDBACK-H.idle))+'s';
   $('hauto').classList[H.auto?'remove':'add']('man');
   $('missile').style.setProperty('--cd',(H.arm/MK[H.mk].arm).toFixed(3));$('missile').classList[H.arm>0?'add':'remove']('cool');
