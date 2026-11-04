@@ -127,8 +127,10 @@ function segD2(x,z,ax,az,bx,bz){
   let t=l?((x-ax)*dx+(z-az)*dz)/l:0;t=t<0?0:t>1?1:t;
   const px=ax+t*dx-x,pz=az+t*dz-z;return px*px+pz*pz;
 }
-function bDist(b,x,z){
-  if(x<b.minx-R_BOMB||x>b.maxx+R_BOMB||z<b.minz-R_BOMB||z>b.maxz+R_BOMB)return 1e9;
+// Distance from (x,z) to the footprint (0 inside); anything further than lim is reported as 1e9.
+function bDist(b,x,z,lim){
+  lim=lim||R_BOMB;
+  if(x<b.minx-lim||x>b.maxx+lim||z<b.minz-lim||z>b.maxz+lim)return 1e9;
   if(x>=b.minx&&x<=b.maxx&&z>=b.minz&&z<=b.maxz&&inPoly(b.r,x,z)){
     let inHole=false;for(const h of b.holes)if(inPoly(h,x,z)){inHole=true;break}
     if(!inHole)return 0;

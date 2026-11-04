@@ -48,18 +48,32 @@ $('mm').addEventListener('pointermove',e=>{if(mmDown)mmJump(e)});
 $('mm').addEventListener('pointerup',()=>{mmDown=false});
 
 /* ---------- state ---------- */
-const bombs=[],fx=[],debris=[],dons=[],sinking=[];
-let score=0,downCount=0,donCount=0,life=0,best=0,shake=0,cooldown=0,muted=false;
-// A round is ROUND seconds, starting with the first bomb; collapses within COMBO_T of each other raise the multiplier.
-const ROUND=60,COMBO_T=2;
-let roundT=ROUND,phase='idle',combo=0,lastDown=-9;
-try{life=+localStorage.getItem('oxford-break-life')||0;best=+localStorage.getItem('oxford-break-best')||0}catch(e){}
+const bombs=[],fx=[],debris=[],dons=[],sinking=[],burning=[];
+let score=0,downCount=0,donCount=0,life=0,shake=0,muted=false;
+// Explosions that bring something down within COMBO_T of the previous one raise the multiplier.
+const COMBO_T=2;
+let combo=0,lastDown=-9,mult=1;
+// fxQ scales debris and dust per collapse, so one nuke levelling 200 buildings stays affordable.
+let fxQ=1;
+try{life=+localStorage.getItem('oxford-break-life')||0}catch(e){}
+
+/* ---------- weapons ---------- */
+// R blast radius m, dmg at the centre falling off as (1-d/R)^fall, cd cooldown s;
+// burn: seconds a meteor leaves the buildings it hits on fire.
+const WEAPONS=[
+  {key:'bomb',R:R_BOMB,dmg:115,fall:1.2,cd:.3,shake:1},
+  {key:'meteor',R:22,dmg:140,fall:1,cd:1.5,shake:1.5,burn:7},
+  {key:'nuke',R:75,dmg:1200,fall:.5,cd:12,shake:3.2}
+];
+const cds=WEAPONS.map(()=>0);
+let wi=0;
 const cam={tx:0,tz:0,yaw:.55,pitch:.92,dist:140};
 const donMat=new THREE.MeshLambertMaterial({color:0x15181d});
 const skinMat=new THREE.MeshLambertMaterial({color:0xe9c7a0});
 const boxGeo=new THREE.BoxGeometry(1,1,1);
 const bombGeo=new THREE.SphereGeometry(.9,12,10),bombMat=new THREE.MeshLambertMaterial({color:0x1e2228});
 const sphereGeo=new THREE.SphereGeometry(1,20,14),ringGeo=new THREE.RingGeometry(.9,1,48);
+const stemGeo=new THREE.CylinderGeometry(.6,1,1,16,1,true),discGeo=new THREE.CircleGeometry(1,32);
 const markGeo=new THREE.RingGeometry(R_BOMB*.55,R_BOMB*.62,40);
 const coneGeo=new THREE.ConeGeometry(.42,1.3,10),headGeo=new THREE.SphereGeometry(.26,10,8);
 const slateMat=new THREE.MeshLambertMaterial({color:0x56616b});
@@ -84,32 +98,33 @@ function ensureAudio(){
   }
   if(ac&&ac.state==='suspended')ac.resume();
 }
-function whistle(){
+function whistle(f0,f1,dur,vol){
   if(!ac||muted)return;
   const t=ac.currentTime,o=ac.createOscillator(),g=ac.createGain();
-  o.type='sine';o.frequency.setValueAtTime(1500,t);o.frequency.exponentialRampToValueAtTime(260,t+1.1);
-  g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.05,t+.15);g.gain.exponentialRampToValueAtTime(.0001,t+1.15);
-  o.connect(g).connect(out);o.start(t);o.stop(t+1.2);
+  o.type='sine';o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(f1,t+dur);
+  g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+.15);g.gain.exponentialRampToValueAtTime(.0001,t+dur+.05);
+  o.connect(g).connect(out);o.start(t);o.stop(t+dur+.1);
 }
-function boom(){
+// A meteor roars in: filtered noise sweeping up.
+function roar(dur){
   if(!ac||muted)return;
-  const t=ac.currentTime;
-  const s=ac.createBufferSource();s.buffer=noise;s.playbackRate.value=.9+rr()*.2;
-  const f=ac.createBiquadFilter();f.type='lowpass';f.frequency.setValueAtTime(900,t);f.frequency.exponentialRampToValueAtTime(70,t+1.2);
-  const g=ac.createGain();g.gain.value=.8;s.connect(f).connect(g).connect(out);s.start(t);
+  const t=ac.currentTime,s=ac.createBufferSource();s.buffer=noise;s.playbackRate.value=.5;
+  const f=ac.createBiquadFilter();f.type='bandpass';f.Q.value=1.2;f.frequency.setValueAtTime(200,t);f.frequency.exponentialRampToValueAtTime(1400,t+dur);
+  const g=ac.createGain();g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.5,t+dur);
+  s.connect(f).connect(g).connect(out);s.start(t);s.stop(t+dur+.05);
+}
+// size 1 is a bomb; bigger is lower, louder and longer.
+function boom(size){
+  if(!ac||muted)return;
+  size=size||1;
+  const t=ac.currentTime,len=1.2*Math.sqrt(size);
+  const s=ac.createBufferSource();s.buffer=noise;s.playbackRate.value=(.9+rr()*.2)/Math.sqrt(size);
+  const f=ac.createBiquadFilter();f.type='lowpass';f.frequency.setValueAtTime(900/Math.sqrt(size),t);f.frequency.exponentialRampToValueAtTime(50,t+len);
+  const g=ac.createGain();g.gain.value=Math.min(1.4,.8*Math.sqrt(size));s.connect(f).connect(g).connect(out);s.start(t);
   const o=ac.createOscillator(),og=ac.createGain();
-  o.frequency.setValueAtTime(90,t);o.frequency.exponentialRampToValueAtTime(30,t+.5);
-  og.gain.setValueAtTime(.6,t);og.gain.exponentialRampToValueAtTime(.001,t+.6);
-  o.connect(og).connect(out);o.start(t);o.stop(t+.7);
-}
-function chime(){
-  if(!ac||muted)return;
-  const t=ac.currentTime;
-  [523,659,784].forEach((fq,i)=>{
-    const o=ac.createOscillator(),g=ac.createGain();o.type='triangle';o.frequency.value=fq;
-    g.gain.setValueAtTime(.0001,t+i*.12);g.gain.exponentialRampToValueAtTime(.12,t+i*.12+.02);g.gain.exponentialRampToValueAtTime(.0001,t+i*.12+.5);
-    o.connect(g).connect(out);o.start(t+i*.12);o.stop(t+i*.12+.55);
-  });
+  o.frequency.setValueAtTime(90/Math.sqrt(size),t);o.frequency.exponentialRampToValueAtTime(25,t+.5*size);
+  og.gain.setValueAtTime(.6,t);og.gain.exponentialRampToValueAtTime(.001,t+.6*size);
+  o.connect(og).connect(out);o.start(t);o.stop(t+.7*size);
 }
 
 /* ---------- hud ---------- */
@@ -125,25 +140,21 @@ function hud(){
   $('score').textContent=fmt(score);$('life').textContent=fmt(life);
   $('down').textContent=fmt(downCount);$('dons').textContent=donCount;
 }
-let clockS=-1;
-function clockHud(){
-  const s=Math.ceil(roundT);
-  if(s!==clockS){clockS=s;$('clock').textContent=phase==='idle'?'1:00 · first bomb starts':Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
-  $('clock').classList[phase==='run'&&roundT<10?'add':'remove']('low');
-}
 function comboHud(){
   const on=combo>1&&T-lastDown<COMBO_T;
   $('mult').textContent=on?'×'+combo:'';
 }
 function addScore(n){score+=n;life+=n}
 function saveLife(){try{localStorage.setItem('oxford-break-life',String(life))}catch(e){}}
-function endRound(){
-  phase='over';
-  const rec=score>best;if(rec){best=score;try{localStorage.setItem('oxford-break-best',String(best))}catch(e){}}
-  $('toastT').textContent=rec&&score>0?'New best!':"Time's up.";
-  $('toastS').textContent=fmt(score)+' points · '+fmt(downCount)+' buildings · best '+fmt(best)+'. Hit Rebuild for another round.';
-  $('toast').hidden=false;$('rebuild').classList.add('pulse');
-  if(rec&&score>0)chime();
+// Weapon bar: the selected weapon is highlighted, and each button's bar empties as its cooldown runs out.
+const armBtns=[...document.querySelectorAll('.arm')];
+function pickWeapon(i){
+  wi=i;armBtns.forEach((b,j)=>b.classList[j===i?'add':'remove']('on'));
+  const s=WEAPONS[i].R/R_BOMB;reticle.scale.set(s,s,s);
+}
+armBtns.forEach((b,i)=>b.addEventListener('click',()=>{ensureAudio();pickWeapon(i)}));
+function armHud(){
+  armBtns.forEach((b,i)=>{const k=clamp(cds[i]/WEAPONS[i].cd,0,1);b.style.setProperty('--cd',k.toFixed(3));b.classList[k>0?'add':'remove']('cool')});
 }
 
 /* ---------- effects ---------- */
@@ -158,45 +169,105 @@ function dust(x,z,n,spread){
     addFx(m,1.2+rr()*.8,f=>{m.scale.setScalar(r0+f*4);m.position.y=1+f*rise;m.material.opacity=.55*(1-f)});
   }
 }
-function explode(x,z){
-  boom();shake=1;
-  const fb=new THREE.Mesh(sphereGeo,new THREE.MeshBasicMaterial({color:0xffa23a,transparent:true,opacity:.95}));
-  fb.position.set(x,3,z);
-  addFx(fb,.55,f=>{fb.scale.setScalar(1+f*R_BOMB*.85);fb.material.opacity=.95*(1-f);fb.material.color.setHex(f<.4?0xffa23a:0xd45a28)});
-  const rg=new THREE.Mesh(ringGeo,new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.8,side:THREE.DoubleSide}));
+function glow(col,op){return new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:op,depthWrite:false})}
+function flash(){const e=$('flash');e.classList.remove('go');void e.offsetWidth;e.classList.add('go')}
+function blastFx(x,z,W){
+  const R=W.R;
+  if(W.key==='nuke'){
+    flash();
+    // fireball, shock ring, then a mushroom cloud: a stem and a cap that rise and darken
+    const fb=new THREE.Mesh(sphereGeo,glow(0xfff1c4,1));fb.position.set(x,6,z);
+    addFx(fb,1.6,f=>{fb.scale.setScalar(4+R*.7*Math.sqrt(f));fb.material.opacity=1-f;fb.material.color.setHex(f<.25?0xfff1c4:f<.6?0xffa23a:0xc8442a)});
+    const rg=new THREE.Mesh(ringGeo,glow(0xffffff,.9));rg.material.side=THREE.DoubleSide;rg.rotation.x=-Math.PI/2;rg.position.set(x,.5,z);
+    addFx(rg,1.8,f=>{rg.scale.setScalar(1+f*R*2.4);rg.material.opacity=.9*(1-f)});
+    const stem=new THREE.Mesh(stemGeo,glow(0xc9a27a,.85));stem.position.set(x,0,z);
+    addFx(stem,6,f=>{const h=10+f*110;stem.scale.set(9+f*6,h,9+f*6);stem.position.y=h/2;stem.material.opacity=.85*(1-f*f)});
+    const cap=new THREE.Mesh(sphereGeo,glow(0xe0a070,.9));cap.position.set(x,10,z);
+    addFx(cap,6,f=>{const s=14+Math.sqrt(f)*42;cap.scale.set(s,s*.55,s);cap.position.y=12+f*112;
+      cap.material.opacity=.9*(1-f*f);cap.material.color.setRGB(.88-.45*f,.63-.3*f,.44-.18*f)});
+    for(let i=0;i<14;i++){
+      const a=i/14*6.283,m=new THREE.Mesh(sphereGeo,glow(0xb7a68e,.6));
+      addFx(m,3.5,f=>{const r=R*.3+f*R*1.6;m.position.set(x+Math.cos(a)*r,3+f*6,z+Math.sin(a)*r);m.scale.setScalar(6+f*14);m.material.opacity=.6*(1-f)});
+    }
+    return;
+  }
+  const big=W.key==='meteor';
+  const fb=new THREE.Mesh(sphereGeo,glow(0xffa23a,.95));fb.position.set(x,3,z);
+  addFx(fb,big?.8:.55,f=>{fb.scale.setScalar(1+f*R*.85);fb.material.opacity=.95*(1-f);fb.material.color.setHex(f<.4?0xffa23a:0xd45a28)});
+  const rg=new THREE.Mesh(ringGeo,glow(0xffffff,.8));rg.material.side=THREE.DoubleSide;
   rg.rotation.x=-Math.PI/2;rg.position.set(x,.4,z);
-  addFx(rg,.6,f=>{rg.scale.setScalar(1+f*R_BOMB*1.7);rg.material.opacity=.8*(1-f)});
-  dust(x,z,8,R_BOMB*.8);
+  addFx(rg,.6,f=>{rg.scale.setScalar(1+f*R*1.7);rg.material.opacity=.8*(1-f)});
+  dust(x,z,big?12:8,R*.8);
+  if(big){
+    // a scorched crater that fades out over a few seconds
+    const cr=new THREE.Mesh(discGeo,glow(0x2a2420,.8));cr.scale.setScalar(R*.55);cr.rotation.x=-Math.PI/2;cr.position.set(x,.3,z);
+    addFx(cr,9,f=>{cr.material.opacity=.8*(1-f*f)});
+  }
+}
+function explode(x,z,W){
+  W=W||WEAPONS[0];
+  const R=W.R;
+  boom(W.key==='nuke'?4:W.key==='meteor'?1.8:1);shake=W.shake;
+  blastFx(x,z,W);
 
   const hit=[];
-  nearBuildings(x,z,R_BOMB,b=>{if(!b.dead)hit.push(b)});
+  nearBuildings(x,z,R,b=>{if(!b.dead)hit.push(b)});
+  fxQ=clamp(24/Math.max(1,hit.length),.12,1);
+  // The multiplier this blast earns if it brings anything down.
+  mult=T-lastDown<COMBO_T?combo+1:1;
+  const before=downCount;
   for(const b of hit){
     if(b.dead)continue;   // may have fallen to a neighbour's collapse earlier in this loop
-    const dist=bDist(b,x,z);if(dist>=R_BOMB)continue;
-    const dmg=115*Math.pow(1-dist/R_BOMB,1.2);
-    b.hp-=dmg;addScore(Math.round(dmg*.3));
-    if(!b.seen){b.seen=true;spawnDons(b)}
-    if(b.hp<=0)collapse(b);else setDamage(b);
+    const dist=bDist(b,x,z,R);if(dist>=R)continue;
+    const dmg=W.dmg*Math.pow(1-dist/R,W.fall);
+    b.hp-=dmg;addScore(Math.round(Math.min(dmg,b.maxHp)*.3));
+    if(!b.seen){b.seen=true;if(fxQ>.5)spawnDons(b)}
+    if(b.hp<=0)collapse(b);
+    else{setDamage(b);if(W.burn)ignite(b,W.burn)}
   }
+  if(downCount>before){combo=mult;lastDown=T}
+  fxQ=1;
   for(const d of dons){
     if(d.st!=='run')continue;
     const dx=d.x-x,dz=d.z-z,dist=Math.hypot(dx,dz)||.01;
-    if(dist<R_BOMB*.85){
+    if(dist<R*.85){
       d.st='fly';d.vy=16+rr()*8;d.vx=dx/dist*(9+rr()*8);d.vz=dz/dist*(9+rr()*8);
       donCount++;addScore(60);pop('+60 don',d.x,3,d.z,'don');
-    }else if(dist<R_BOMB*2.2){d.h=Math.atan2(dz,dx);d.sp=6;d.tm=1.6}
+    }else if(dist<R*2.2){d.h=Math.atan2(dz,dx);d.sp=6;d.tm=1.6}
   }
-  killTrees(x,z,R_BOMB*.85);
+  killTrees(x,z,R*.85);
   hud();saveLife();
 }
 function setDamage(b){const f=1-clamp(b.hp/b.maxHp,0,1);paintBuilding(b,1-.35*f,f)}
+/* fire: a burning building loses hp for a few seconds and may come down on its own */
+function ignite(b,t){
+  if(b.burn>0){b.burn=Math.max(b.burn,t);return}
+  if(burning.length>=40)return;
+  b.burn=t;b.flameT=0;b.paintT=0;burning.push(b);
+}
+const flameCols=[0xffc23a,0xff8a2a,0xe8552a];
+function updateFire(dt){
+  for(let i=burning.length-1;i>=0;i--){
+    const b=burning[i];
+    if(b.dead||b.burn<=0){b.burn=0;burning.splice(i,1);continue}
+    b.burn-=dt;b.hp-=b.maxHp*.09*dt;
+    if(b.hp<=0){mult=1;collapse(b);hud();continue}
+    if((b.paintT-=dt)<=0){b.paintT=.3;setDamage(b)}
+    if((b.flameT-=dt)<=0){
+      b.flameT=.09;
+      const px=b.minx+rr()*(b.maxx-b.minx),pz=b.minz+rr()*(b.maxz-b.minz),y0=b.h*b.s+.5;
+      const m=new THREE.Mesh(sphereGeo,glow(flameCols[(rr()*3)|0],.9));m.position.set(px,y0,pz);
+      const r0=.8+rr()*1.4;
+      addFx(m,.9+rr()*.5,f=>{m.scale.setScalar(r0*(1-f*.7));m.position.y=y0+f*7;m.material.opacity=.9*(1-f)});
+    }
+  }
+}
 // chain: a collapse shakes its neighbours, but neighbours that fall from that do not shake theirs.
 function collapse(b,chain){
-  b.dead=true;downCount++;
+  b.dead=true;b.burn=0;downCount++;
   sinking.push({b,s0:b.s,s1:Math.min(1,1.3/b.h),t:0,dur:.6+Math.min(.8,b.h/40)});
-  combo=T-lastDown<COMBO_T?combo+1:1;lastDown=T;
-  const pts=b.pts*combo;addScore(pts);
-  pop((b.name?b.name+' ':'')+'+'+fmt(pts)+(combo>1?' ×'+combo:''),b.x,Math.min(b.h*.6,20),b.z,b.name?'big':'');
+  const pts=b.pts*mult;addScore(pts);
+  if(b.name||fxQ>=1)pop((b.name?b.name+' ':'')+'+'+fmt(pts)+(mult>1?' ×'+mult:''),b.x,Math.min(b.h*.6,20),b.z,b.name?'big':'');
   if(!chain){
     const rad=clamp(Math.sqrt(b.area)*.35,4,R_BOMB),near=[];
     nearBuildings(b.x,b.z,rad,n=>{if(!n.dead&&n!==b)near.push(n)});
@@ -208,7 +279,7 @@ function collapse(b,chain){
   }
   const o=mmo.getContext('2d');o.fillStyle='#ff6a3d';o.fillRect(mx(b.x)-1,mz(b.z)-1,2.4,2.4);
   const stoneM=debrisMat(b.wc);
-  const n=Math.min(36,Math.round(b.area*b.h/90)+8);
+  const n=Math.round(Math.min(36,Math.round(b.area*b.h/90)+8)*fxQ);
   for(let i=0;i<n;i++){
     let px=b.x,pz=b.z;
     for(let t=0;t<5;t++){const qx=b.minx+rr()*(b.maxx-b.minx),qz=b.minz+rr()*(b.maxz-b.minz);if(inPoly(b.r,qx,qz)){px=qx;pz=qz;break}}
@@ -218,7 +289,7 @@ function collapse(b,chain){
     debris.push({m,s,age:0,rest:false,vx:(px-b.x)*.5+(rr()-.5)*8,vy:6+rr()*14,vz:(pz-b.z)*.5+(rr()-.5)*8,rx:(rr()-.5)*8,rz:(rr()-.5)*8});
   }
   while(debris.length>420){const p=debris.shift();scene.remove(p.m)}
-  dust(b.x,b.z,Math.min(7,3+(b.area/200|0)),Math.max(b.maxx-b.minx,b.maxz-b.minz));
+  dust(b.x,b.z,Math.round(Math.min(7,3+(b.area/200|0))*fxQ),Math.max(b.maxx-b.minx,b.maxz-b.minz));
 }
 
 /* ---------- dons ---------- */
@@ -259,14 +330,24 @@ function updateDons(dt){
 }
 
 /* ---------- bombs ---------- */
+const meteorGeo=new THREE.IcosahedronGeometry(2.4,1),meteorMat=new THREE.MeshBasicMaterial({color:0xffb347});
+const nukeMat=new THREE.MeshLambertMaterial({color:0x4a5536});
 function drop(x,z){
-  if(cooldown>0||phase==='over'||phase==='ending')return;
-  if(phase==='idle'){phase='run';roundT=ROUND}
-  cooldown=.3;x=clamp(x,-MW/2,MW/2);z=clamp(z,-MH/2,MH/2);
-  const g=new THREE.Mesh(bombGeo,bombMat);g.scale.set(1,1.6,1);g.position.set(x,80,z);scene.add(g);
-  const mk=new THREE.Mesh(markGeo,new THREE.MeshBasicMaterial({color:0xff6a3d,transparent:true,opacity:.7,side:THREE.DoubleSide}));
-  mk.rotation.x=-Math.PI/2;mk.position.set(x,.4,z);scene.add(mk);
-  bombs.push({g,mk,x,z,y:80,vy:-30});whistle();
+  const W=WEAPONS[wi];if(cds[wi]>0)return;
+  cds[wi]=W.cd;x=clamp(x,-MW/2,MW/2);z=clamp(z,-MH/2,MH/2);
+  const mk=new THREE.Mesh(markGeo,glow(W.key==='nuke'?0xffd23a:0xff6a3d,.7));mk.material.side=THREE.DoubleSide;
+  mk.scale.setScalar(W.R/R_BOMB);mk.rotation.x=-Math.PI/2;mk.position.set(x,.4,z);scene.add(mk);
+  if(W.key==='meteor'){
+    // comes in at a slant from beyond the camera's right shoulder, trailing fire
+    const a=cam.yaw+1.1,sx=x+Math.sin(a)*120,sz=z+Math.cos(a)*120;
+    const g=new THREE.Mesh(meteorGeo,meteorMat);g.position.set(sx,150,sz);scene.add(g);
+    bombs.push({W,g,mk,x,z,sx,sy:150,sz,t:0,dur:1.1,trail:0});roar(1.1);
+  }else{
+    const nuke=W.key==='nuke',y=nuke?160:80;
+    const g=new THREE.Mesh(bombGeo,nuke?nukeMat:bombMat);g.scale.set(nuke?2.6:1,nuke?4:1.6,nuke?2.6:1);g.position.set(x,y,z);scene.add(g);
+    bombs.push({W,g,mk,x,z,y,vy:nuke?-20:-30});
+    if(nuke)whistle(900,110,2,.08);else whistle(1500,260,1.1,.05);
+  }
 }
 
 /* ---------- camera + input ---------- */
@@ -318,6 +399,7 @@ const PITCH_MIN=.5,PITCH_MAX=1.35;
 const pair=()=>{const a=[...ptrs.values()];return{d:Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y)||1,a:Math.atan2(a[1].y-a[0].y,a[1].x-a[0].x)}};
 // Zoom by factor k while keeping the ground point under the cursor fixed.
 function zoomAt(k,sx,sy){
+  placeCam();camera.updateMatrixWorld();
   const g=ground(sx,sy),gx=g&&g.x,gz=g&&g.z;
   cam.dist=clamp(cam.dist*k,40,450);
   if(!g)return;
@@ -353,21 +435,48 @@ const endPtr=e=>{
 cv.addEventListener('pointerup',endPtr);cv.addEventListener('pointercancel',endPtr);
 cv.addEventListener('pointerleave',e=>{if(e.pointerType==='mouse')reticle.visible=false});
 cv.addEventListener('contextmenu',e=>e.preventDefault());
-cv.addEventListener('wheel',e=>{e.preventDefault();zoomAt(1+Math.sign(e.deltaY)*.1,e.clientX,e.clientY)},{passive:false});
+// Wheel: a mouse wheel zooms in steps. Laptop trackpads report two-finger scrolls as small, often fractional
+// wheel deltas (and sideways ones), and pinches as ctrl+wheel: so two fingers pan, pinch zooms, and
+// shift/alt + two fingers orbits. Safari on a Mac also sends rotate gestures.
+let padT=-1e9,pinchT=-1e9;
+cv.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const now=performance.now(),u=e.deltaMode===1?16:e.deltaMode===2?innerHeight:1,dx=e.deltaX*u,dy=e.deltaY*u;
+  if(e.ctrlKey){pinchT=now;zoomAt(Math.exp(clamp(dy,-50,50)*.012),e.clientX,e.clientY);return}
+  if(e.deltaMode===0&&(dx!==0||Math.abs(dy)<50))padT=now;   // a wheel notch is ≥ 100 px and never sideways
+  if(now-padT<300){
+    if(e.shiftKey||e.altKey){cam.yaw-=(dx||dy)*.005;if(dx)cam.pitch=clamp(cam.pitch+dy*.003,PITCH_MIN,PITCH_MAX)}
+    else panBy(-dx,-dy);
+    return;
+  }
+  zoomAt(1+Math.sign(dy)*.1,e.clientX,e.clientY);
+},{passive:false});
+let gest=null;
+cv.addEventListener('gesturestart',e=>{e.preventDefault();gest={r:e.rotation,d:cam.dist}});
+cv.addEventListener('gesturechange',e=>{
+  e.preventDefault();if(!gest)return;
+  cam.yaw-=(e.rotation-gest.r)*Math.PI/180;gest.r=e.rotation;
+  if(performance.now()-pinchT>200)cam.dist=clamp(gest.d/e.scale,40,450);
+});
+cv.addEventListener('gestureend',e=>{e.preventDefault();gest=null});
 
 const keys=new Set();
 addEventListener('keydown',e=>{
   if(e.code==='Space'){e.preventDefault();ensureAudio();const g=ground(innerWidth/2,innerHeight/2);if(g)drop(g.x,g.z);return}
   if(e.code==='KeyM'){toggleMute();return}
+  if(e.code==='KeyL'){toggleLabels();return}
+  const n=['Digit1','Digit2','Digit3'].indexOf(e.code);if(n>=0){pickWeapon(n);return}
   keys.add(e.code);
 });
 addEventListener('keyup',e=>keys.delete(e.code));
 function toggleMute(){muted=!muted;$('mute').textContent=muted?'Sound off':'Sound on';if(!muted)ensureAudio()}
 $('mute').addEventListener('click',toggleMute);
+$('lblbtn').addEventListener('click',toggleLabels);$('lblbtn').textContent=labelsOn?'Labels on':'Labels off';
 function reset(){
   bombs.splice(0).forEach(b=>{scene.remove(b.g);scene.remove(b.mk);b.mk.material.dispose()});
   fx.splice(0).forEach(dropFx);
   sinking.length=0;
+  burning.splice(0).forEach(b=>{b.burn=0});
   debris.splice(0).forEach(p=>scene.remove(p.m));
   dons.splice(0).forEach(d=>scene.remove(d.g));
   for(const c of bList){
@@ -383,8 +492,7 @@ function reset(){
   });
   mmo.getContext('2d').clearRect(0,0,MMW,MMH);
   score=0;downCount=0;donCount=0;hud();
-  phase='idle';roundT=ROUND;combo=0;lastDown=-9;clockS=-1;clockHud();comboHud();
-  $('toast').hidden=true;$('rebuild').classList.remove('pulse');
+  combo=0;lastDown=-9;comboHud();
 }
 $('rebuild').addEventListener('click',reset);
 
@@ -401,7 +509,8 @@ let last=performance.now(),T=0,fr=0;
 function frame(now){
   requestAnimationFrame(frame);
   const dt=Math.min((now-last)/1000,.05);last=now;T+=dt;fr++;
-  cooldown-=dt;shake=Math.max(0,shake-dt*1.6);
+  for(let i=0;i<cds.length;i++)cds[i]-=dt;
+  shake=Math.max(0,shake-dt*1.6);
 
   const sp=60*dt*(cam.dist/100);
   let fx_=0,fz_=0;
@@ -415,16 +524,24 @@ function frame(now){
   if(keys.has('KeyR'))cam.pitch=Math.min(PITCH_MAX,cam.pitch+.8*dt);
   if(keys.has('KeyF'))cam.pitch=Math.max(PITCH_MIN,cam.pitch-.8*dt);
 
-  // Round clock: when it runs out no more bombs drop; the result shows once the last one has landed.
-  if(phase==='run'){roundT=Math.max(0,roundT-dt);if(roundT===0)phase='ending'}
-  if(phase==='ending'&&!bombs.length&&!sinking.length)endRound();
-  clockHud();comboHud();
+  comboHud();armHud();
 
   for(let i=bombs.length-1;i>=0;i--){
-    const b=bombs[i];b.vy-=55*dt;b.y+=b.vy*dt;b.g.position.y=b.y;
+    const b=bombs[i];let landed;
     b.mk.material.opacity=.5+.25*Math.sin(T*22);
-    if(b.y<=1){scene.remove(b.g);scene.remove(b.mk);b.mk.material.dispose();bombs.splice(i,1);explode(b.x,b.z)}
+    if(b.dur){
+      // meteor: accelerates along its slant
+      b.t+=dt/b.dur;const k=Math.min(1,b.t),e=k*k;
+      b.g.position.set(b.sx+(b.x-b.sx)*e,b.sy*(1-e)+1,b.sz+(b.z-b.sz)*e);b.g.rotation.x+=dt*6;b.g.rotation.y+=dt*4;
+      if((b.trail-=dt)<=0){
+        b.trail=.025;const m=new THREE.Mesh(sphereGeo,glow(flameCols[(rr()*3)|0],.85));m.position.copy(b.g.position);
+        const r0=1.6+rr();addFx(m,.6,f=>{m.scale.setScalar(r0*(1+f*1.5));m.material.opacity=.85*(1-f)});
+      }
+      landed=k>=1;
+    }else{b.vy-=55*dt;b.y+=b.vy*dt;b.g.position.y=b.y;landed=b.y<=1}
+    if(landed){scene.remove(b.g);scene.remove(b.mk);b.mk.material.dispose();bombs.splice(i,1);explode(b.x,b.z,b.W)}
   }
+  updateFire(dt);
   for(let i=fx.length-1;i>=0;i--){
     const f=fx[i];f.t+=dt;const k=f.t/f.dur;
     if(k>=1){dropFx(f);fx.splice(i,1)}else f.upd(k);
@@ -464,14 +581,15 @@ function frame(now){
   mmDot.style.left=((cam.tx+MW/2)/MW*100)+'%';mmDot.style.top=((cam.tz+MH/2)/MH*100)+'%';
   placeCam();
   renderer.render(scene,camera);
+  updateLabels();
 }
 
 setTimeout(()=>{
   try{
-    buildAll();drawMini();
+    buildAll();drawMini();buildLabels();
     const rc=buildings.find(b=>b.name==='Radcliffe Camera');
     if(rc){cam.tx=rc.x;cam.tz=rc.z}
-    hud();clockHud();treeVis(cam.tx,cam.tz,cam.dist);
+    hud();treeVis(cam.tx,cam.tz,cam.dist);
     requestAnimationFrame(frame);
     $('loading').hidden=true;
   }catch(err){

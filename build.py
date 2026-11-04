@@ -6,7 +6,7 @@ rd=lambda p:open(os.path.join(r,p),encoding='utf8').read()
 def wr(p,s):
     os.makedirs(os.path.dirname(os.path.join(r,p)),exist_ok=True)
     open(os.path.join(r,p),'w',encoding='utf8').write(s)
-game=rd('src/world.js')+rd('src/play.js')
+game=rd('src/world.js')+rd('src/labels.js')+rd('src/play.js')
 wr('dist/game_all.js',game)
 html=rd('src/head.html').replace('/*DATA*/',rd('data/game_data.json')).replace('/*GAME*/',game)
 wr('dist/oxford-break.html',html)

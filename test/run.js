@@ -6,10 +6,11 @@ global.THREE.WebGLRenderer=class{constructor(){this.shadowMap={};this.capabiliti
 global.window=global;global.innerWidth=1280;global.innerHeight=800;global.devicePixelRatio=1;
 const noopCtx=new Proxy(function(){},{get:(t,k)=>k==='canvas'?{}:()=>{},set:()=>true});
 const els={};
-const mk=id=>({id,style:{},hidden:false,textContent:'',classList:{add(){},remove(){}},handlers:{},
+const mk=id=>({id,style:{setProperty(){}},hidden:false,textContent:'',classList:{add(){},remove(){}},handlers:{},
  getContext:()=>noopCtx,addEventListener(t,f){this.handlers[t]=f},setPointerCapture(){},appendChild(){},remove(){},
  getBoundingClientRect:()=>({left:0,top:0,width:200,height:150}),width:0,height:0});
-global.document={getElementById:id=>els[id]||(els[id]=mk(id)),createElement:()=>mk('x')};
+const arms=[mk('arm0'),mk('arm1'),mk('arm2')];
+global.document={getElementById:id=>els[id]||(els[id]=mk(id)),createElement:()=>mk('x'),querySelectorAll:()=>arms};
 els.data=mk('data');els.data.textContent=fs.readFileSync(S+'game_data.json','utf8');
 global.localStorage={getItem:()=>null,setItem(){}};
 global.addEventListener=()=>{};
@@ -31,5 +32,15 @@ console.log('score',els.score.textContent,'down',els.down.textContent,'dons',els
 // several bombs
 for(let k=0;k<6;k++){c.pointerdown({...ev,clientX:500+k*50});c.pointerup({...ev,clientX:500+k*50,type:'pointerup'});step(60)}
 console.log('score',els.score.textContent,'down',els.down.textContent,'where',els.where.textContent);
+// meteor, then nuke (cooldowns are per weapon)
+arms[1].handlers.click();c.pointerdown(ev);c.pointerup({...ev,type:'pointerup'});step(150);
+console.log('meteor: score',els.score.textContent,'down',els.down.textContent);
+arms[2].handlers.click();c.pointerdown(ev);c.pointerup({...ev,type:'pointerup'});step(200);
+console.log('nuke: score',els.score.textContent,'down',els.down.textContent);
+// trackpad: pinch, two-finger pan, mouse wheel
+c.wheel({preventDefault(){},deltaMode:0,deltaX:0,deltaY:8,ctrlKey:true,clientX:640,clientY:400});
+c.wheel({preventDefault(){},deltaMode:0,deltaX:6,deltaY:-3,clientX:640,clientY:400});
+c.wheel({preventDefault(){},deltaMode:0,deltaX:0,deltaY:100,clientX:640,clientY:400});
+step(5);
 els.rebuild.handlers.click();
 console.log('after reset score',els.score.textContent,'down',els.down.textContent);

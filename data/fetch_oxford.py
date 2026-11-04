@@ -17,6 +17,7 @@ Output format (all coordinates in decimetres, x east, z south, origin at the cen
   r  rivers     [line, width dm]
   g  green      [ring, 0 grass | 1 pitch]
   d  roads      [line, width dm, class 0 rail | 1.. ROAD_CLASSES]
+  l  colleges   [x m, z m, name]  centre of each college's grounds (the game labels the ones it knows)
 """
 import json, math, os, sys, time, urllib.parse, urllib.request
 
@@ -45,6 +46,8 @@ QUERIES = {
     "roads": (f'way["highway"~"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|'
               f'living_street|service|pedestrian|footway|cycleway|path|track|steps)$"]{BB};'
               f'way["railway"="rail"]{BB};'),
+    "colleges": (f'way["amenity"~"^(college|university)$"]["name"]{BB};relation["amenity"~"^(college|university)$"]["name"]{BB};'
+                 f'way["university"="college"]{BB};relation["university"="college"]{BB};'),
 }
 RAW = os.path.join(os.path.dirname(os.path.abspath(__file__)), "raw")
 
@@ -328,7 +331,7 @@ def main():
             if a < 12 or not keep(*centroid(outer)):
                 continue
             nm = t.get("name") if a > 250 else None
-            rec = [dm(simp_ring(outer, .5)), int(round(b_height(t) * 2)), b_kind(t), (nm or "")[:40] or 0]
+            rec = [dm(simp_ring(outer, .5)), int(round(b_height(t) * 2)), b_kind(t), (nm or "")[:48] or 0]
             hs = [dm(simp_ring(h, .5)) for h in holes]
             ex = extras(t)
             if hs or ex:
@@ -417,10 +420,21 @@ def main():
         for run in clip_line(dp(way_pts(el), 1 if cls == 0 else .8)):
             out["d"].append([dm(run), int(round(w * 10)), cls])
 
+    out["l"] = []
+    for el in raw["colleges"]["elements"]:
+        nm = el.get("tags", {}).get("name")
+        ps = polys(el)
+        if not nm or not ps:
+            continue
+        outer = max((o for o, _ in ps), key=area)
+        c = centroid(outer)
+        if keep(*c):
+            out["l"].append([round(c[0]), round(c[1]), nm])
+
     dst = os.path.join(os.path.dirname(os.path.abspath(__file__)), "game_data.json")
     json.dump(out, open(dst, "w", encoding="utf-8"), separators=(",", ":"), ensure_ascii=False)
     print(f"\nDone: game_data.json  {os.path.getsize(dst) / 1e6:.1f} MB, map {out['s']} m")
-    for k in "btwrgd":
+    for k in "btwrgdl":
         print(f"  {k} {len(out[k]) // (2 if k == 't' else 1)}")
     print("skipped underground:", sorted(set(map(str, skipped)))[:30])
 
