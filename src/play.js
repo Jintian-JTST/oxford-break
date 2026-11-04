@@ -43,7 +43,7 @@ function mmJump(e){
   clampCam();
 }
 let mmDown=false;
-$('mm').addEventListener('pointerdown',e=>{mmDown=true;$('mm').setPointerCapture(e.pointerId);mmJump(e)});
+$('mm').addEventListener('pointerdown',e=>{if(mode!=='bomb')return;mmDown=true;$('mm').setPointerCapture(e.pointerId);mmJump(e)});
 $('mm').addEventListener('pointermove',e=>{if(mmDown)mmJump(e)});
 $('mm').addEventListener('pointerup',()=>{mmDown=false});
 
@@ -55,6 +55,8 @@ const COMBO_T=2;
 let combo=0,lastDown=-9,mult=1;
 // fxQ scales debris and dust per collapse, so one nuke levelling 200 buildings stays affordable.
 let fxQ=1;
+// 'menu' | 'bomb' | 'heli' (see main.js)
+let mode='menu';
 try{life=+localStorage.getItem('oxford-break-life')||0}catch(e){}
 
 /* ---------- weapons ---------- */
@@ -206,10 +208,14 @@ function blastFx(x,z,W){
 }
 function explode(x,z,W){
   W=W||WEAPONS[0];
-  const R=W.R;
-  boom(W.key==='nuke'?4:W.key==='meteor'?1.8:1);shake=W.shake;
+  boom(W.key==='nuke'?4:W.key==='meteor'?1.8:1);shake=Math.max(shake,W.shake);
   blastFx(x,z,W);
-
+  damageArea(x,z,W.R,W.dmg,W.fall,W.burn);
+  hud();saveLife();
+}
+// Damage everything within R of (x,z): buildings ((1-d/R)^fall of dmg), dons and trees. donR: a minimum radius
+// for knocking dons over, so a 3 m gun round still takes one down. Returns how many buildings came down.
+function damageArea(x,z,R,dmg,fall,burn,donR){
   const hit=[];
   nearBuildings(x,z,R,b=>{if(!b.dead)hit.push(b)});
   fxQ=clamp(24/Math.max(1,hit.length),.12,1);
@@ -219,24 +225,27 @@ function explode(x,z,W){
   for(const b of hit){
     if(b.dead)continue;   // may have fallen to a neighbour's collapse earlier in this loop
     const dist=bDist(b,x,z,R);if(dist>=R)continue;
-    const dmg=W.dmg*Math.pow(1-dist/R,W.fall);
-    b.hp-=dmg;addScore(Math.round(Math.min(dmg,b.maxHp)*.3));
+    const d=dmg*Math.pow(1-dist/R,fall);
+    b.hp-=d;addScore(Math.round(Math.min(d,b.maxHp)*.3));
     if(!b.seen){b.seen=true;if(fxQ>.5)spawnDons(b)}
     if(b.hp<=0)collapse(b);
-    else{setDamage(b);if(W.burn)ignite(b,W.burn)}
+    else{setDamage(b);if(burn)ignite(b,burn)}
   }
-  if(downCount>before){combo=mult;lastDown=T}
+  const down=downCount-before;
+  if(down){combo=mult;lastDown=T}
   fxQ=1;
+  const kr=Math.max(R*.85,donR||0);
   for(const d of dons){
-    if(d.st!=='run')continue;
+    if(d.st!=='run'&&d.st!=='arm')continue;
     const dx=d.x-x,dz=d.z-z,dist=Math.hypot(dx,dz)||.01;
-    if(dist<R*.85){
+    if(dist<kr){
+      const pts=d.st==='arm'?100:60;if(d.st==='arm')H.kills++;
       d.st='fly';d.vy=16+rr()*8;d.vx=dx/dist*(9+rr()*8);d.vz=dz/dist*(9+rr()*8);
-      donCount++;addScore(60);pop('+60 don',d.x,3,d.z,'don');
-    }else if(dist<R*2.2){d.h=Math.atan2(dz,dx);d.sp=6;d.tm=1.6}
+      donCount++;addScore(pts);pop('+'+pts+' don',d.x,3,d.z,'don');
+    }else if(d.st==='run'&&dist<R*2.2){d.h=Math.atan2(dz,dx);d.sp=6;d.tm=1.6}
   }
   killTrees(x,z,R*.85);
-  hud();saveLife();
+  return down;
 }
 function setDamage(b){const f=1-clamp(b.hp/b.maxHp,0,1);paintBuilding(b,1-.35*f,f)}
 /* fire: a burning building loses hp for a few seconds and may come down on its own */
@@ -293,6 +302,15 @@ function collapse(b,chain){
 }
 
 /* ---------- dons ---------- */
+// A don: gown, head and mortarboard, twice life size so they read from the air.
+function donMesh(x,z){
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(coneGeo,donMat);body.position.y=.65;g.add(body);
+  const head=new THREE.Mesh(headGeo,skinMat);head.position.y=1.5;g.add(head);
+  const hat=new THREE.Mesh(boxGeo,donMat);hat.scale.set(.6,.07,.6);hat.position.y=1.78;g.add(hat);
+  g.scale.setScalar(2);g.position.set(x,0,z);g.traverse(o=>{o.castShadow=true});scene.add(g);
+  return g;
+}
 function spawnDons(b){
   if(dons.length>45)return;
   const n=b.name?3:1+(rr()<.4?1:0);
@@ -301,12 +319,7 @@ function spawnDons(b){
     let dx=vx-b.x,dz=vz-b.z;const l=Math.hypot(dx,dz)||1;
     const px=vx+dx/l*2.5,pz=vz+dz/l*2.5;
     if(Math.abs(px)>MW/2||Math.abs(pz)>MH/2||insideAlive(px,pz,.8))continue;
-    const g=new THREE.Group();
-    const body=new THREE.Mesh(coneGeo,donMat);body.position.y=.65;g.add(body);
-    const head=new THREE.Mesh(headGeo,skinMat);head.position.y=1.5;g.add(head);
-    const hat=new THREE.Mesh(boxGeo,donMat);hat.scale.set(.6,.07,.6);hat.position.y=1.78;g.add(hat);
-    g.scale.setScalar(2);g.position.set(px,0,pz);g.traverse(o=>{o.castShadow=true});scene.add(g);
-    dons.push({g,x:px,z:pz,h:rr()*6.28,sp:3,st:'run',t:rr()*10,tm:0,vx:0,vy:0,vz:0});
+    dons.push({g:donMesh(px,pz),x:px,z:pz,h:rr()*6.28,sp:3,st:'run',t:rr()*10,tm:0,vx:0,vy:0,vz:0});
   }
 }
 function updateDons(dt){
@@ -320,6 +333,8 @@ function updateDons(dt){
       else{d.x=nx;d.z=nz}
       d.g.position.set(d.x,Math.abs(Math.sin(d.t*12))*.2,d.z);
       d.g.rotation.set(0,-d.h+Math.PI/2,Math.sin(d.t*12)*.12);
+    }else if(d.st==='arm'){
+      armedDon(d,dt);
     }else if(d.st==='fly'){
       d.vy-=30*dt;d.x+=d.vx*dt;d.z+=d.vz*dt;
       d.g.position.set(d.x,d.g.position.y+d.vy*dt,d.z);
@@ -358,9 +373,12 @@ function placeCam(){
     Math.sin(cam.pitch)*cam.dist+(rr()-.5)*s,
     cam.tz+Math.cos(cam.yaw)*cp*cam.dist+(rr()-.5)*s);
   camera.lookAt(cam.tx,0,cam.tz);
-  // The shadow box follows what is on screen: centred ahead of the target and sized from the zoom.
-  const fwd=cam.dist*.2,S=clamp(cam.dist*1.4,160,600);
-  sunT.position.set(cam.tx-Math.sin(cam.yaw)*fwd,0,cam.tz-Math.cos(cam.yaw)*fwd);
+  fitShadow(cam.tx,cam.tz,cam.dist,cam.yaw);
+}
+// The shadow box follows what is on screen: centred ahead of (tx,tz) along the view and sized from the distance.
+function fitShadow(tx,tz,dist,yaw){
+  const fwd=dist*.2,S=clamp(dist*1.4,160,600);
+  sunT.position.set(tx-Math.sin(yaw)*fwd,0,tz-Math.cos(yaw)*fwd);
   sun.position.copy(sunT.position).addScaledVector(SUN_DIR,900);
   if(Math.abs(S-lastS)>3){
     const sc=sun.shadow.camera;sc.left=-S;sc.right=S;sc.top=S;sc.bottom=-S;sc.updateProjectionMatrix();
@@ -370,16 +388,18 @@ function placeCam(){
 const SUN_DIR=new THREE.Vector3(-90,170,60).normalize();let lastS=0;
 // The map can have cut-out corners (D.x); the camera target is pushed out of them along the shorter way.
 const CUTS=D.x||[];
-function clampCam(){
-  cam.tx=clamp(cam.tx,-MW/2,MW/2);cam.tz=clamp(cam.tz,-MH/2,MH/2);
+function onMap(x,z){
+  x=clamp(x,-MW/2,MW/2);z=clamp(z,-MH/2,MH/2);
   for(const [x0,z0,x1,z1] of CUTS){
-    if(cam.tx<=x0||cam.tx>=x1||cam.tz<=z0||cam.tz>=z1)continue;
-    const opts=[[x0-cam.tx,0],[x1-cam.tx,0],[0,z0-cam.tz],[0,z1-cam.tz]]
-      .filter(([dx,dz])=>Math.abs(cam.tx+dx)<=MW/2&&Math.abs(cam.tz+dz)<=MH/2);
+    if(x<=x0||x>=x1||z<=z0||z>=z1)continue;
+    const opts=[[x0-x,0],[x1-x,0],[0,z0-z],[0,z1-z]]
+      .filter(([dx,dz])=>Math.abs(x+dx)<=MW/2&&Math.abs(z+dz)<=MH/2);
     let b=opts[0];for(const o of opts)if(Math.abs(o[0])+Math.abs(o[1])<Math.abs(b[0])+Math.abs(b[1]))b=o;
-    cam.tx+=b[0];cam.tz+=b[1];
+    x+=b[0];z+=b[1];
   }
+  return [x,z];
 }
+function clampCam(){[cam.tx,cam.tz]=onMap(cam.tx,cam.tz)}
 function panBy(dx,dy){
   const k=cam.dist*.0016,s=Math.sin(cam.yaw),c=Math.cos(cam.yaw);
   cam.tx+=-c*dx*k+(-s)*dy*k;cam.tz+=s*dx*k+(-c)*dy*k;clampCam();
@@ -407,13 +427,15 @@ function zoomAt(k,sx,sy){
   const g2=ground(sx,sy);if(g2){cam.tx+=gx-g2.x;cam.tz+=gz-g2.z;clampCam()}
 }
 cv.addEventListener('pointerdown',e=>{
-  ensureAudio();cv.setPointerCapture(e.pointerId);
+  ensureAudio();if(mode!=='bomb')return;
+  cv.setPointerCapture(e.pointerId);
   // right mouse button (or ctrl-click) orbits instead of panning
   const rot=e.pointerType==='mouse'&&(e.button===2||e.ctrlKey);
   ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,t:performance.now(),multi:false,rot});
   if(ptrs.size>=2){ptrs.forEach(p=>p.multi=true);const q=pair();pinch0=q.d;twist0=q.a}
 });
 cv.addEventListener('pointermove',e=>{
+  if(mode!=='bomb')return;
   const p=ptrs.get(e.pointerId);
   if(!p){if(e.pointerType==='mouse')aim(e.clientX,e.clientY);return}
   const dx=e.clientX-p.x,dy=e.clientY-p.y;p.x=e.clientX;p.y=e.clientY;
@@ -440,7 +462,7 @@ cv.addEventListener('contextmenu',e=>e.preventDefault());
 // shift/alt + two fingers orbits. Safari on a Mac also sends rotate gestures.
 let padT=-1e9,pinchT=-1e9;
 cv.addEventListener('wheel',e=>{
-  e.preventDefault();
+  e.preventDefault();if(mode!=='bomb')return;
   const now=performance.now(),u=e.deltaMode===1?16:e.deltaMode===2?innerHeight:1,dx=e.deltaX*u,dy=e.deltaY*u;
   if(e.ctrlKey){pinchT=now;zoomAt(Math.exp(clamp(dy,-50,50)*.012),e.clientX,e.clientY);return}
   if(e.deltaMode===0&&(dx!==0||Math.abs(dy)<50))padT=now;   // a wheel notch is ≥ 100 px and never sideways
@@ -452,7 +474,7 @@ cv.addEventListener('wheel',e=>{
   zoomAt(1+Math.sign(dy)*.1,e.clientX,e.clientY);
 },{passive:false});
 let gest=null;
-cv.addEventListener('gesturestart',e=>{e.preventDefault();gest={r:e.rotation,d:cam.dist}});
+cv.addEventListener('gesturestart',e=>{e.preventDefault();if(mode==='bomb')gest={r:e.rotation,d:cam.dist}});
 cv.addEventListener('gesturechange',e=>{
   e.preventDefault();if(!gest)return;
   cam.yaw-=(e.rotation-gest.r)*Math.PI/180;gest.r=e.rotation;
@@ -462,14 +484,19 @@ cv.addEventListener('gestureend',e=>{e.preventDefault();gest=null});
 
 const keys=new Set();
 addEventListener('keydown',e=>{
-  if(e.code==='Space'){e.preventDefault();ensureAudio();const g=ground(innerWidth/2,innerHeight/2);if(g)drop(g.x,g.z);return}
   if(e.code==='KeyM'){toggleMute();return}
   if(e.code==='KeyL'){toggleLabels();return}
-  const n=['Digit1','Digit2','Digit3'].indexOf(e.code);if(n>=0){pickWeapon(n);return}
+  if(mode==='bomb'){
+    if(e.code==='Space'){e.preventDefault();ensureAudio();const g=ground(innerWidth/2,innerHeight/2);if(g)drop(g.x,g.z);return}
+    const n=['Digit1','Digit2','Digit3'].indexOf(e.code);if(n>=0){pickWeapon(n);return}
+  }else if(mode==='heli'){
+    if(e.code==='Space')e.preventDefault();
+    if(e.code==='KeyE'){ensureAudio();fireMissile();return}
+  }
   keys.add(e.code);
 });
 addEventListener('keyup',e=>keys.delete(e.code));
-function toggleMute(){muted=!muted;$('mute').textContent=muted?'Sound off':'Sound on';if(!muted)ensureAudio()}
+function toggleMute(){muted=!muted;$('mute').textContent=$('hmute').textContent=muted?'Sound off':'Sound on';if(!muted)ensureAudio()}
 $('mute').addEventListener('click',toggleMute);
 $('lblbtn').addEventListener('click',toggleLabels);$('lblbtn').textContent=labelsOn?'Labels on':'Labels off';
 function reset(){
@@ -491,6 +518,7 @@ function reset(){
     tc.list.forEach(t=>t.dead=false);
   });
   mmo.getContext('2d').clearRect(0,0,MMW,MMH);
+  reticle.visible=false;
   score=0;downCount=0;donCount=0;hud();
   combo=0;lastDown=-9;comboHud();
 }
@@ -504,28 +532,11 @@ function resize(){
 }
 addEventListener('resize',resize);resize();
 
-/* ---------- loop ---------- */
-let last=performance.now(),T=0,fr=0;
-function frame(now){
-  requestAnimationFrame(frame);
-  const dt=Math.min((now-last)/1000,.05);last=now;T+=dt;fr++;
+/* ---------- per-frame updates ---------- */
+// Everything that moves on its own, whatever the mode: bombs in flight, fire, effects, collapses, debris, dons.
+function updateWorld(dt){
   for(let i=0;i<cds.length;i++)cds[i]-=dt;
   shake=Math.max(0,shake-dt*1.6);
-
-  const sp=60*dt*(cam.dist/100);
-  let fx_=0,fz_=0;
-  if(keys.has('KeyW')||keys.has('ArrowUp'))fz_-=1;
-  if(keys.has('KeyS')||keys.has('ArrowDown'))fz_+=1;
-  if(keys.has('KeyA')||keys.has('ArrowLeft'))fx_-=1;
-  if(keys.has('KeyD')||keys.has('ArrowRight'))fx_+=1;
-  if(fx_||fz_){const s=Math.sin(cam.yaw),c=Math.cos(cam.yaw);cam.tx+=(fx_*c+fz_*s)*sp;cam.tz+=(-fx_*s+fz_*c)*sp;clampCam()}
-  if(keys.has('KeyQ'))cam.yaw-=1.2*dt;
-  if(keys.has('KeyE'))cam.yaw+=1.2*dt;
-  if(keys.has('KeyR'))cam.pitch=Math.min(PITCH_MAX,cam.pitch+.8*dt);
-  if(keys.has('KeyF'))cam.pitch=Math.max(PITCH_MIN,cam.pitch-.8*dt);
-
-  comboHud();armHud();
-
   for(let i=bombs.length-1;i>=0;i--){
     const b=bombs[i];let landed;
     b.mk.material.opacity=.5+.25*Math.sin(T*22);
@@ -572,29 +583,25 @@ function frame(now){
     }
   }
   updateDons(dt);
+}
+// Bombing mode: keyboard camera, HUD, and the overhead camera.
+function updateBomb(dt){
+  const sp=60*dt*(cam.dist/100);
+  let fx_=0,fz_=0;
+  if(keys.has('KeyW')||keys.has('ArrowUp'))fz_-=1;
+  if(keys.has('KeyS')||keys.has('ArrowDown'))fz_+=1;
+  if(keys.has('KeyA')||keys.has('ArrowLeft'))fx_-=1;
+  if(keys.has('KeyD')||keys.has('ArrowRight'))fx_+=1;
+  if(fx_||fz_){const s=Math.sin(cam.yaw),c=Math.cos(cam.yaw);cam.tx+=(fx_*c+fz_*s)*sp;cam.tz+=(-fx_*s+fz_*c)*sp;clampCam()}
+  if(keys.has('KeyQ'))cam.yaw-=1.2*dt;
+  if(keys.has('KeyE'))cam.yaw+=1.2*dt;
+  if(keys.has('KeyR'))cam.pitch=Math.min(PITCH_MAX,cam.pitch+.8*dt);
+  if(keys.has('KeyF'))cam.pitch=Math.max(PITCH_MIN,cam.pitch-.8*dt);
+  comboHud();armHud();
   if(fr%20===1){
-    treeVis(cam.tx,cam.tz,cam.dist);
     let best=null,bd=95*95;
     nearBuildings(cam.tx,cam.tz,95,b=>{if(b.name&&!b.dead){const d=(b.x-cam.tx)**2+(b.z-cam.tz)**2;if(d<bd){bd=d;best=b.name}}});
     $('where').textContent=best||'Oxford';
   }
-  mmDot.style.left=((cam.tx+MW/2)/MW*100)+'%';mmDot.style.top=((cam.tz+MH/2)/MH*100)+'%';
   placeCam();
-  renderer.render(scene,camera);
-  updateLabels();
 }
-
-setTimeout(()=>{
-  try{
-    buildAll();drawMini();buildLabels();
-    const rc=buildings.find(b=>b.name==='Radcliffe Camera');
-    if(rc){cam.tx=rc.x;cam.tz=rc.z}
-    hud();treeVis(cam.tx,cam.tz,cam.dist);
-    requestAnimationFrame(frame);
-    $('loading').hidden=true;
-  }catch(err){
-    $('loadmsg').textContent='Could not build the map: '+err.message;
-    console.error(err);
-  }
-},60);
-})();

@@ -74,7 +74,64 @@ button.primary{background:var(--stone);color:var(--ink);border-color:var(--stone
 .pop.big{font-size:26px;color:var(--alarm)}
 .pop.don{color:var(--chalk);font-size:17px}
 @keyframes rise{from{opacity:1;margin-top:0}to{opacity:0;margin-top:-70px}}
-@media (max-width:560px){.hint{display:none}.stats div{min-width:0;padding:7px 10px}.arm{padding:8px 9px 9px}.arm b{display:none}.lbl.col{font-size:11px}}
+/* modes: body.mode-menu | mode-bomb | mode-heli */
+body.mode-menu .hud,body.mode-menu .heli-only,body.mode-bomb .heli-only{display:none}
+body.mode-heli header.hud,body.mode-menu #labels{display:none}
+body.mode-heli footer.hud{margin-top:auto}
+body.mode-heli .bomb-only{visibility:hidden}
+#menu{position:fixed;inset:0;z-index:4;display:none;align-items:center;justify-content:center;padding:24px 16px;overflow:auto;
+  background:linear-gradient(180deg,rgba(10,28,54,.45),rgba(10,28,54,.86))}
+body.mode-menu #menu{display:flex}
+.menuin{width:min(720px,100%);display:flex;flex-direction:column;gap:22px}
+.mhead b{display:block;font:400 clamp(40px,9vw,72px)/.95 var(--f-display);text-shadow:0 3px 0 rgba(0,0,0,.35)}
+.mhead span{display:block;margin-top:12px;font:500 12px/1.4 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--stone)}
+.modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.mode{display:flex;flex-direction:column;align-items:flex-start;gap:9px;text-align:left;padding:18px 18px 20px;border-radius:8px;transition:transform .15s,border-color .15s}
+.mode:hover{transform:translateY(-2px)}
+.mode em{font:500 10px/1 var(--f-mono);font-style:normal;letter-spacing:.14em;text-transform:uppercase;color:var(--stone)}
+.mode b{font:400 30px/1 var(--f-display)}
+.mode span{font:400 14px/1.45 var(--f-body);color:var(--mute)}
+.recs{display:flex;gap:1px;background:var(--panel);border-radius:6px;overflow:hidden;align-self:flex-start}
+.recs div{padding:10px 16px;min-width:130px}
+.recs b{display:block;font:500 20px/1.1 var(--f-mono);font-variant-numeric:tabular-nums}
+.recs small{font:500 10px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+/* helicopter HUD */
+.heli{position:fixed;top:12px;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));z-index:2;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;pointer-events:none}
+.hpanel{background:var(--panel);border-radius:8px;padding:12px 16px 14px;min-width:200px}
+.hpanel small{display:block;font:500 10px/1.4 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+.hpanel small b{color:var(--chalk);font-weight:500}
+#hround{color:var(--stone)}
+#hscore{display:block;margin:4px 0 6px;font:400 clamp(28px,6vw,40px)/1 var(--f-display);font-variant-numeric:tabular-nums}
+.hp{display:flex;align-items:center;gap:8px;margin-top:10px;font:500 11px/1 var(--f-mono)}
+.hp b{min-width:26px;text-align:right}
+.hpbar{flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,.12);overflow:hidden}
+.hpbar i{display:block;height:100%;background:var(--alarm);transform-origin:left}
+.hbot{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:2;display:flex;align-items:center;gap:8px;pointer-events:none}
+.hbot>span{background:var(--panel);border-radius:6px;padding:10px 12px;font:500 11px/1 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
+#hmk{color:var(--stone)}
+#hauto.man{color:var(--alarm)}
+.msl{position:relative;overflow:hidden;background:rgba(120,90,30,.85);border-color:var(--stone)}
+.msl i{position:absolute;left:0;bottom:0;width:100%;height:3px;background:var(--alarm);transform-origin:left;transform:scaleX(var(--cd,0))}
+.msl.cool{color:var(--mute);background:var(--panel)}
+.hhint{position:fixed;left:max(16px,env(safe-area-inset-left,0px));bottom:14px;z-index:2;font:500 11px/1.5 var(--f-mono);background:var(--panel);padding:8px 12px;border-radius:6px;max-width:300px;pointer-events:none}
+#xhair{position:fixed;left:0;top:0;width:34px;height:34px;margin:-17px 0 0 -17px;border:2px solid rgba(255,255,255,.85);border-radius:50%;z-index:2;pointer-events:none;box-shadow:0 0 0 1px rgba(8,24,48,.5)}
+#xhair::after{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;border-radius:50%;background:var(--alarm)}
+body.mode-heli #c{cursor:none}
+#joy{position:fixed;left:24px;bottom:28px;width:124px;height:124px;border-radius:50%;background:rgba(8,24,48,.45);border:1px solid rgba(255,255,255,.25);touch-action:none;pointer-events:auto;z-index:3;display:none}
+#joyk{position:absolute;left:50%;top:50%;width:50px;height:50px;margin:-25px;border-radius:50%;background:rgba(230,189,98,.85)}
+@media (pointer:coarse){body.mode-heli #joy{display:block}.hhint{display:none}#xhair{display:none}}
+@media (max-width:700px){.hhint{display:none}}
+#banner{position:fixed;left:50%;top:26%;transform:translate(-50%,-50%);z-index:3;text-align:center;pointer-events:none;text-shadow:0 2px 0 rgba(0,0,0,.5)}
+#banner b{display:block;font:400 clamp(28px,6vw,44px)/1 var(--f-display);color:var(--stone)}
+#banner span{display:block;margin-top:8px;font:500 12px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase}
+.card{position:fixed;left:50%;top:44%;transform:translate(-50%,-50%);z-index:6;text-align:center;background:var(--panel);padding:22px 24px;border-radius:10px;width:min(420px,calc(100vw - 32px));border:1px solid rgba(255,255,255,.15)}
+.card b{display:block;font:400 26px/1.15 var(--f-display);color:var(--stone)}
+.card p{margin:10px 0 18px;font:400 14px/1.5 var(--f-body)}
+.cardbtns{display:flex;gap:8px;justify-content:center}
+#hurt{position:fixed;inset:0;z-index:2;pointer-events:none;opacity:0;box-shadow:inset 0 0 140px rgba(255,60,40,.75)}
+#hurt.go{animation:hurt .5s ease-out}
+@keyframes hurt{0%{opacity:1}100%{opacity:0}}
+@media (max-width:560px){.hint{display:none}.hbot{left:auto;right:16px;transform:none;bottom:118px;flex-direction:column;align-items:flex-end}.hpanel{min-width:0}.stats div{min-width:0;padding:7px 10px}.arm{padding:8px 9px 9px}.arm b{display:none}.lbl.col{font-size:11px}}
 @media (prefers-reduced-motion:reduce){.pop{animation-duration:.01s}#flash.go{animation-duration:.3s}}
 </style>
 
@@ -82,6 +139,34 @@ button.primary{background:var(--stone);color:var(--ink);border-color:var(--stone
 <div id="labels"></div>
 <div id="pops"></div>
 <div id="flash"></div>
+
+<div id="menu">
+  <div class="menuin">
+    <div class="mhead"><b>Oxford Break</b><span>Oxford from OpenStreetMap · stylised · breakable</span></div>
+    <div class="modes">
+      <button id="playBomb" class="mode" type="button"><em>Free destruction</em><b>Bombing</b><span>Bomb, meteor and nuke. Pan around and level the city at your own pace.</span></button>
+      <button id="playHeli" class="mode" type="button"><em>Two-round campaign</em><b>Helicopter</b><span>The autopilot flies the route, or take the controls. Aim, fire, and mind the dons: they shoot back.</span></button>
+    </div>
+    <div class="recs"><div><small>Lifetime points</small><b id="recLife">0</b></div><div><small>Best flight</small><b id="recFlight">—</b></div></div>
+  </div>
+</div>
+
+<div class="heli heli-only">
+  <div class="hpanel">
+    <small id="hround">Round 1</small>
+    <span id="hscore">0</span>
+    <small><b id="hkills">0</b> dons down · <b id="htime">1:40</b></small>
+    <div class="hp"><span>HP</span><b id="hpv">100</b><div class="hpbar"><i id="hpfill"></i></div></div>
+  </div>
+  <div class="btns"><button id="hmute" type="button">Sound on</button><button id="hmenu" type="button">Menu</button></div>
+</div>
+<div class="hbot heli-only"><span id="hmk">MK I</span><span id="hauto">Autopilot</span><button id="missile" class="msl" type="button">Missile<i></i></button></div>
+<div class="hhint heli-only">Mouse to aim · hold to fire · right-click or E: missile<br>W/S A/D fly · Space / Shift up and down<br>Let go for 3 s and the autopilot takes over</div>
+<div id="xhair" class="heli-only"></div>
+<div id="joy"><i id="joyk"></i></div>
+<div id="banner" hidden><b id="bannerT"></b><span id="bannerS"></span></div>
+<div id="card" class="card" hidden><b id="cardT"></b><p id="cardS"></p><div class="cardbtns"><button id="cardA" class="primary" type="button"></button><button id="cardB" type="button"></button></div></div>
+<div id="hurt"></div>
 
 <header class="hud">
   <div class="brand"><b>Oxford Break</b><span>OpenStreetMap, stylised</span></div>
@@ -91,13 +176,13 @@ button.primary{background:var(--stone);color:var(--ink);border-color:var(--stone
       <button class="arm on" type="button"><b>1</b>Bomb<i></i></button><button class="arm" type="button"><b>2</b>Meteor<i></i></button><button class="arm" type="button"><b>3</b>Nuke<i></i></button>
     </div>
   </div>
-  <div class="btns"><button id="lblbtn" type="button">Labels on</button><button id="mute" type="button">Sound on</button><button id="rebuild" type="button">Rebuild</button></div>
+  <div class="btns"><button id="lblbtn" type="button">Labels on</button><button id="mute" type="button">Sound on</button><button id="rebuild" type="button">Rebuild</button><button id="tomenu" type="button">Menu</button></div>
 </header>
 
 <div id="loading"><b>Oxford Break</b><span id="loadmsg">Raising 9,000 buildings…</span></div>
 
 <footer class="hud bottom">
-  <div class="left">
+  <div class="left bomb-only">
     <div class="hint">Click to drop · 1 2 3 pick bomb, meteor, nuke<br>Drag or two-finger swipe to pan · wheel or pinch to zoom<br>Right-drag, shift + swipe, Q/E · R/F to rotate and tilt<br>Space drops at centre · L labels · click the map to jump</div>
     <div class="where" id="where">—</div>
     <div class="stats">

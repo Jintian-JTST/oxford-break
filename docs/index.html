@@ -81,7 +81,64 @@ button.primary{background:var(--stone);color:var(--ink);border-color:var(--stone
 .pop.big{font-size:26px;color:var(--alarm)}
 .pop.don{color:var(--chalk);font-size:17px}
 @keyframes rise{from{opacity:1;margin-top:0}to{opacity:0;margin-top:-70px}}
-@media (max-width:560px){.hint{display:none}.stats div{min-width:0;padding:7px 10px}.arm{padding:8px 9px 9px}.arm b{display:none}.lbl.col{font-size:11px}}
+/* modes: body.mode-menu | mode-bomb | mode-heli */
+body.mode-menu .hud,body.mode-menu .heli-only,body.mode-bomb .heli-only{display:none}
+body.mode-heli header.hud,body.mode-menu #labels{display:none}
+body.mode-heli footer.hud{margin-top:auto}
+body.mode-heli .bomb-only{visibility:hidden}
+#menu{position:fixed;inset:0;z-index:4;display:none;align-items:center;justify-content:center;padding:24px 16px;overflow:auto;
+  background:linear-gradient(180deg,rgba(10,28,54,.45),rgba(10,28,54,.86))}
+body.mode-menu #menu{display:flex}
+.menuin{width:min(720px,100%);display:flex;flex-direction:column;gap:22px}
+.mhead b{display:block;font:400 clamp(40px,9vw,72px)/.95 var(--f-display);text-shadow:0 3px 0 rgba(0,0,0,.35)}
+.mhead span{display:block;margin-top:12px;font:500 12px/1.4 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--stone)}
+.modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.mode{display:flex;flex-direction:column;align-items:flex-start;gap:9px;text-align:left;padding:18px 18px 20px;border-radius:8px;transition:transform .15s,border-color .15s}
+.mode:hover{transform:translateY(-2px)}
+.mode em{font:500 10px/1 var(--f-mono);font-style:normal;letter-spacing:.14em;text-transform:uppercase;color:var(--stone)}
+.mode b{font:400 30px/1 var(--f-display)}
+.mode span{font:400 14px/1.45 var(--f-body);color:var(--mute)}
+.recs{display:flex;gap:1px;background:var(--panel);border-radius:6px;overflow:hidden;align-self:flex-start}
+.recs div{padding:10px 16px;min-width:130px}
+.recs b{display:block;font:500 20px/1.1 var(--f-mono);font-variant-numeric:tabular-nums}
+.recs small{font:500 10px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+/* helicopter HUD */
+.heli{position:fixed;top:12px;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));z-index:2;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;pointer-events:none}
+.hpanel{background:var(--panel);border-radius:8px;padding:12px 16px 14px;min-width:200px}
+.hpanel small{display:block;font:500 10px/1.4 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+.hpanel small b{color:var(--chalk);font-weight:500}
+#hround{color:var(--stone)}
+#hscore{display:block;margin:4px 0 6px;font:400 clamp(28px,6vw,40px)/1 var(--f-display);font-variant-numeric:tabular-nums}
+.hp{display:flex;align-items:center;gap:8px;margin-top:10px;font:500 11px/1 var(--f-mono)}
+.hp b{min-width:26px;text-align:right}
+.hpbar{flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,.12);overflow:hidden}
+.hpbar i{display:block;height:100%;background:var(--alarm);transform-origin:left}
+.hbot{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:2;display:flex;align-items:center;gap:8px;pointer-events:none}
+.hbot>span{background:var(--panel);border-radius:6px;padding:10px 12px;font:500 11px/1 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
+#hmk{color:var(--stone)}
+#hauto.man{color:var(--alarm)}
+.msl{position:relative;overflow:hidden;background:rgba(120,90,30,.85);border-color:var(--stone)}
+.msl i{position:absolute;left:0;bottom:0;width:100%;height:3px;background:var(--alarm);transform-origin:left;transform:scaleX(var(--cd,0))}
+.msl.cool{color:var(--mute);background:var(--panel)}
+.hhint{position:fixed;left:max(16px,env(safe-area-inset-left,0px));bottom:14px;z-index:2;font:500 11px/1.5 var(--f-mono);background:var(--panel);padding:8px 12px;border-radius:6px;max-width:300px;pointer-events:none}
+#xhair{position:fixed;left:0;top:0;width:34px;height:34px;margin:-17px 0 0 -17px;border:2px solid rgba(255,255,255,.85);border-radius:50%;z-index:2;pointer-events:none;box-shadow:0 0 0 1px rgba(8,24,48,.5)}
+#xhair::after{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;border-radius:50%;background:var(--alarm)}
+body.mode-heli #c{cursor:none}
+#joy{position:fixed;left:24px;bottom:28px;width:124px;height:124px;border-radius:50%;background:rgba(8,24,48,.45);border:1px solid rgba(255,255,255,.25);touch-action:none;pointer-events:auto;z-index:3;display:none}
+#joyk{position:absolute;left:50%;top:50%;width:50px;height:50px;margin:-25px;border-radius:50%;background:rgba(230,189,98,.85)}
+@media (pointer:coarse){body.mode-heli #joy{display:block}.hhint{display:none}#xhair{display:none}}
+@media (max-width:700px){.hhint{display:none}}
+#banner{position:fixed;left:50%;top:26%;transform:translate(-50%,-50%);z-index:3;text-align:center;pointer-events:none;text-shadow:0 2px 0 rgba(0,0,0,.5)}
+#banner b{display:block;font:400 clamp(28px,6vw,44px)/1 var(--f-display);color:var(--stone)}
+#banner span{display:block;margin-top:8px;font:500 12px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase}
+.card{position:fixed;left:50%;top:44%;transform:translate(-50%,-50%);z-index:6;text-align:center;background:var(--panel);padding:22px 24px;border-radius:10px;width:min(420px,calc(100vw - 32px));border:1px solid rgba(255,255,255,.15)}
+.card b{display:block;font:400 26px/1.15 var(--f-display);color:var(--stone)}
+.card p{margin:10px 0 18px;font:400 14px/1.5 var(--f-body)}
+.cardbtns{display:flex;gap:8px;justify-content:center}
+#hurt{position:fixed;inset:0;z-index:2;pointer-events:none;opacity:0;box-shadow:inset 0 0 140px rgba(255,60,40,.75)}
+#hurt.go{animation:hurt .5s ease-out}
+@keyframes hurt{0%{opacity:1}100%{opacity:0}}
+@media (max-width:560px){.hint{display:none}.hbot{left:auto;right:16px;transform:none;bottom:118px;flex-direction:column;align-items:flex-end}.hpanel{min-width:0}.stats div{min-width:0;padding:7px 10px}.arm{padding:8px 9px 9px}.arm b{display:none}.lbl.col{font-size:11px}}
 @media (prefers-reduced-motion:reduce){.pop{animation-duration:.01s}#flash.go{animation-duration:.3s}}
 </style>
 
@@ -89,6 +146,34 @@ button.primary{background:var(--stone);color:var(--ink);border-color:var(--stone
 <div id="labels"></div>
 <div id="pops"></div>
 <div id="flash"></div>
+
+<div id="menu">
+  <div class="menuin">
+    <div class="mhead"><b>Oxford Break</b><span>Oxford from OpenStreetMap · stylised · breakable</span></div>
+    <div class="modes">
+      <button id="playBomb" class="mode" type="button"><em>Free destruction</em><b>Bombing</b><span>Bomb, meteor and nuke. Pan around and level the city at your own pace.</span></button>
+      <button id="playHeli" class="mode" type="button"><em>Two-round campaign</em><b>Helicopter</b><span>The autopilot flies the route, or take the controls. Aim, fire, and mind the dons: they shoot back.</span></button>
+    </div>
+    <div class="recs"><div><small>Lifetime points</small><b id="recLife">0</b></div><div><small>Best flight</small><b id="recFlight">—</b></div></div>
+  </div>
+</div>
+
+<div class="heli heli-only">
+  <div class="hpanel">
+    <small id="hround">Round 1</small>
+    <span id="hscore">0</span>
+    <small><b id="hkills">0</b> dons down · <b id="htime">1:40</b></small>
+    <div class="hp"><span>HP</span><b id="hpv">100</b><div class="hpbar"><i id="hpfill"></i></div></div>
+  </div>
+  <div class="btns"><button id="hmute" type="button">Sound on</button><button id="hmenu" type="button">Menu</button></div>
+</div>
+<div class="hbot heli-only"><span id="hmk">MK I</span><span id="hauto">Autopilot</span><button id="missile" class="msl" type="button">Missile<i></i></button></div>
+<div class="hhint heli-only">Mouse to aim · hold to fire · right-click or E: missile<br>W/S A/D fly · Space / Shift up and down<br>Let go for 3 s and the autopilot takes over</div>
+<div id="xhair" class="heli-only"></div>
+<div id="joy"><i id="joyk"></i></div>
+<div id="banner" hidden><b id="bannerT"></b><span id="bannerS"></span></div>
+<div id="card" class="card" hidden><b id="cardT"></b><p id="cardS"></p><div class="cardbtns"><button id="cardA" class="primary" type="button"></button><button id="cardB" type="button"></button></div></div>
+<div id="hurt"></div>
 
 <header class="hud">
   <div class="brand"><b>Oxford Break</b><span>OpenStreetMap, stylised</span></div>
@@ -98,13 +183,13 @@ button.primary{background:var(--stone);color:var(--ink);border-color:var(--stone
       <button class="arm on" type="button"><b>1</b>Bomb<i></i></button><button class="arm" type="button"><b>2</b>Meteor<i></i></button><button class="arm" type="button"><b>3</b>Nuke<i></i></button>
     </div>
   </div>
-  <div class="btns"><button id="lblbtn" type="button">Labels on</button><button id="mute" type="button">Sound on</button><button id="rebuild" type="button">Rebuild</button></div>
+  <div class="btns"><button id="lblbtn" type="button">Labels on</button><button id="mute" type="button">Sound on</button><button id="rebuild" type="button">Rebuild</button><button id="tomenu" type="button">Menu</button></div>
 </header>
 
 <div id="loading"><b>Oxford Break</b><span id="loadmsg">Raising 9,000 buildings…</span></div>
 
 <footer class="hud bottom">
-  <div class="left">
+  <div class="left bomb-only">
     <div class="hint">Click to drop · 1 2 3 pick bomb, meteor, nuke<br>Drag or two-finger swipe to pan · wheel or pinch to zoom<br>Right-drag, shift + swipe, Q/E · R/F to rotate and tilt<br>Space drops at centre · L labels · click the map to jump</div>
     <div class="where" id="where">—</div>
     <div class="stats">
@@ -795,7 +880,7 @@ function mmJump(e){
   clampCam();
 }
 let mmDown=false;
-$('mm').addEventListener('pointerdown',e=>{mmDown=true;$('mm').setPointerCapture(e.pointerId);mmJump(e)});
+$('mm').addEventListener('pointerdown',e=>{if(mode!=='bomb')return;mmDown=true;$('mm').setPointerCapture(e.pointerId);mmJump(e)});
 $('mm').addEventListener('pointermove',e=>{if(mmDown)mmJump(e)});
 $('mm').addEventListener('pointerup',()=>{mmDown=false});
 
@@ -807,6 +892,8 @@ const COMBO_T=2;
 let combo=0,lastDown=-9,mult=1;
 // fxQ scales debris and dust per collapse, so one nuke levelling 200 buildings stays affordable.
 let fxQ=1;
+// 'menu' | 'bomb' | 'heli' (see main.js)
+let mode='menu';
 try{life=+localStorage.getItem('oxford-break-life')||0}catch(e){}
 
 /* ---------- weapons ---------- */
@@ -958,10 +1045,14 @@ function blastFx(x,z,W){
 }
 function explode(x,z,W){
   W=W||WEAPONS[0];
-  const R=W.R;
-  boom(W.key==='nuke'?4:W.key==='meteor'?1.8:1);shake=W.shake;
+  boom(W.key==='nuke'?4:W.key==='meteor'?1.8:1);shake=Math.max(shake,W.shake);
   blastFx(x,z,W);
-
+  damageArea(x,z,W.R,W.dmg,W.fall,W.burn);
+  hud();saveLife();
+}
+// Damage everything within R of (x,z): buildings ((1-d/R)^fall of dmg), dons and trees. donR: a minimum radius
+// for knocking dons over, so a 3 m gun round still takes one down. Returns how many buildings came down.
+function damageArea(x,z,R,dmg,fall,burn,donR){
   const hit=[];
   nearBuildings(x,z,R,b=>{if(!b.dead)hit.push(b)});
   fxQ=clamp(24/Math.max(1,hit.length),.12,1);
@@ -971,24 +1062,27 @@ function explode(x,z,W){
   for(const b of hit){
     if(b.dead)continue;   // may have fallen to a neighbour's collapse earlier in this loop
     const dist=bDist(b,x,z,R);if(dist>=R)continue;
-    const dmg=W.dmg*Math.pow(1-dist/R,W.fall);
-    b.hp-=dmg;addScore(Math.round(Math.min(dmg,b.maxHp)*.3));
+    const d=dmg*Math.pow(1-dist/R,fall);
+    b.hp-=d;addScore(Math.round(Math.min(d,b.maxHp)*.3));
     if(!b.seen){b.seen=true;if(fxQ>.5)spawnDons(b)}
     if(b.hp<=0)collapse(b);
-    else{setDamage(b);if(W.burn)ignite(b,W.burn)}
+    else{setDamage(b);if(burn)ignite(b,burn)}
   }
-  if(downCount>before){combo=mult;lastDown=T}
+  const down=downCount-before;
+  if(down){combo=mult;lastDown=T}
   fxQ=1;
+  const kr=Math.max(R*.85,donR||0);
   for(const d of dons){
-    if(d.st!=='run')continue;
+    if(d.st!=='run'&&d.st!=='arm')continue;
     const dx=d.x-x,dz=d.z-z,dist=Math.hypot(dx,dz)||.01;
-    if(dist<R*.85){
+    if(dist<kr){
+      const pts=d.st==='arm'?100:60;if(d.st==='arm')H.kills++;
       d.st='fly';d.vy=16+rr()*8;d.vx=dx/dist*(9+rr()*8);d.vz=dz/dist*(9+rr()*8);
-      donCount++;addScore(60);pop('+60 don',d.x,3,d.z,'don');
-    }else if(dist<R*2.2){d.h=Math.atan2(dz,dx);d.sp=6;d.tm=1.6}
+      donCount++;addScore(pts);pop('+'+pts+' don',d.x,3,d.z,'don');
+    }else if(d.st==='run'&&dist<R*2.2){d.h=Math.atan2(dz,dx);d.sp=6;d.tm=1.6}
   }
   killTrees(x,z,R*.85);
-  hud();saveLife();
+  return down;
 }
 function setDamage(b){const f=1-clamp(b.hp/b.maxHp,0,1);paintBuilding(b,1-.35*f,f)}
 /* fire: a burning building loses hp for a few seconds and may come down on its own */
@@ -1045,6 +1139,15 @@ function collapse(b,chain){
 }
 
 /* ---------- dons ---------- */
+// A don: gown, head and mortarboard, twice life size so they read from the air.
+function donMesh(x,z){
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(coneGeo,donMat);body.position.y=.65;g.add(body);
+  const head=new THREE.Mesh(headGeo,skinMat);head.position.y=1.5;g.add(head);
+  const hat=new THREE.Mesh(boxGeo,donMat);hat.scale.set(.6,.07,.6);hat.position.y=1.78;g.add(hat);
+  g.scale.setScalar(2);g.position.set(x,0,z);g.traverse(o=>{o.castShadow=true});scene.add(g);
+  return g;
+}
 function spawnDons(b){
   if(dons.length>45)return;
   const n=b.name?3:1+(rr()<.4?1:0);
@@ -1053,12 +1156,7 @@ function spawnDons(b){
     let dx=vx-b.x,dz=vz-b.z;const l=Math.hypot(dx,dz)||1;
     const px=vx+dx/l*2.5,pz=vz+dz/l*2.5;
     if(Math.abs(px)>MW/2||Math.abs(pz)>MH/2||insideAlive(px,pz,.8))continue;
-    const g=new THREE.Group();
-    const body=new THREE.Mesh(coneGeo,donMat);body.position.y=.65;g.add(body);
-    const head=new THREE.Mesh(headGeo,skinMat);head.position.y=1.5;g.add(head);
-    const hat=new THREE.Mesh(boxGeo,donMat);hat.scale.set(.6,.07,.6);hat.position.y=1.78;g.add(hat);
-    g.scale.setScalar(2);g.position.set(px,0,pz);g.traverse(o=>{o.castShadow=true});scene.add(g);
-    dons.push({g,x:px,z:pz,h:rr()*6.28,sp:3,st:'run',t:rr()*10,tm:0,vx:0,vy:0,vz:0});
+    dons.push({g:donMesh(px,pz),x:px,z:pz,h:rr()*6.28,sp:3,st:'run',t:rr()*10,tm:0,vx:0,vy:0,vz:0});
   }
 }
 function updateDons(dt){
@@ -1072,6 +1170,8 @@ function updateDons(dt){
       else{d.x=nx;d.z=nz}
       d.g.position.set(d.x,Math.abs(Math.sin(d.t*12))*.2,d.z);
       d.g.rotation.set(0,-d.h+Math.PI/2,Math.sin(d.t*12)*.12);
+    }else if(d.st==='arm'){
+      armedDon(d,dt);
     }else if(d.st==='fly'){
       d.vy-=30*dt;d.x+=d.vx*dt;d.z+=d.vz*dt;
       d.g.position.set(d.x,d.g.position.y+d.vy*dt,d.z);
@@ -1110,9 +1210,12 @@ function placeCam(){
     Math.sin(cam.pitch)*cam.dist+(rr()-.5)*s,
     cam.tz+Math.cos(cam.yaw)*cp*cam.dist+(rr()-.5)*s);
   camera.lookAt(cam.tx,0,cam.tz);
-  // The shadow box follows what is on screen: centred ahead of the target and sized from the zoom.
-  const fwd=cam.dist*.2,S=clamp(cam.dist*1.4,160,600);
-  sunT.position.set(cam.tx-Math.sin(cam.yaw)*fwd,0,cam.tz-Math.cos(cam.yaw)*fwd);
+  fitShadow(cam.tx,cam.tz,cam.dist,cam.yaw);
+}
+// The shadow box follows what is on screen: centred ahead of (tx,tz) along the view and sized from the distance.
+function fitShadow(tx,tz,dist,yaw){
+  const fwd=dist*.2,S=clamp(dist*1.4,160,600);
+  sunT.position.set(tx-Math.sin(yaw)*fwd,0,tz-Math.cos(yaw)*fwd);
   sun.position.copy(sunT.position).addScaledVector(SUN_DIR,900);
   if(Math.abs(S-lastS)>3){
     const sc=sun.shadow.camera;sc.left=-S;sc.right=S;sc.top=S;sc.bottom=-S;sc.updateProjectionMatrix();
@@ -1122,16 +1225,18 @@ function placeCam(){
 const SUN_DIR=new THREE.Vector3(-90,170,60).normalize();let lastS=0;
 // The map can have cut-out corners (D.x); the camera target is pushed out of them along the shorter way.
 const CUTS=D.x||[];
-function clampCam(){
-  cam.tx=clamp(cam.tx,-MW/2,MW/2);cam.tz=clamp(cam.tz,-MH/2,MH/2);
+function onMap(x,z){
+  x=clamp(x,-MW/2,MW/2);z=clamp(z,-MH/2,MH/2);
   for(const [x0,z0,x1,z1] of CUTS){
-    if(cam.tx<=x0||cam.tx>=x1||cam.tz<=z0||cam.tz>=z1)continue;
-    const opts=[[x0-cam.tx,0],[x1-cam.tx,0],[0,z0-cam.tz],[0,z1-cam.tz]]
-      .filter(([dx,dz])=>Math.abs(cam.tx+dx)<=MW/2&&Math.abs(cam.tz+dz)<=MH/2);
+    if(x<=x0||x>=x1||z<=z0||z>=z1)continue;
+    const opts=[[x0-x,0],[x1-x,0],[0,z0-z],[0,z1-z]]
+      .filter(([dx,dz])=>Math.abs(x+dx)<=MW/2&&Math.abs(z+dz)<=MH/2);
     let b=opts[0];for(const o of opts)if(Math.abs(o[0])+Math.abs(o[1])<Math.abs(b[0])+Math.abs(b[1]))b=o;
-    cam.tx+=b[0];cam.tz+=b[1];
+    x+=b[0];z+=b[1];
   }
+  return [x,z];
 }
+function clampCam(){[cam.tx,cam.tz]=onMap(cam.tx,cam.tz)}
 function panBy(dx,dy){
   const k=cam.dist*.0016,s=Math.sin(cam.yaw),c=Math.cos(cam.yaw);
   cam.tx+=-c*dx*k+(-s)*dy*k;cam.tz+=s*dx*k+(-c)*dy*k;clampCam();
@@ -1159,13 +1264,15 @@ function zoomAt(k,sx,sy){
   const g2=ground(sx,sy);if(g2){cam.tx+=gx-g2.x;cam.tz+=gz-g2.z;clampCam()}
 }
 cv.addEventListener('pointerdown',e=>{
-  ensureAudio();cv.setPointerCapture(e.pointerId);
+  ensureAudio();if(mode!=='bomb')return;
+  cv.setPointerCapture(e.pointerId);
   // right mouse button (or ctrl-click) orbits instead of panning
   const rot=e.pointerType==='mouse'&&(e.button===2||e.ctrlKey);
   ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,t:performance.now(),multi:false,rot});
   if(ptrs.size>=2){ptrs.forEach(p=>p.multi=true);const q=pair();pinch0=q.d;twist0=q.a}
 });
 cv.addEventListener('pointermove',e=>{
+  if(mode!=='bomb')return;
   const p=ptrs.get(e.pointerId);
   if(!p){if(e.pointerType==='mouse')aim(e.clientX,e.clientY);return}
   const dx=e.clientX-p.x,dy=e.clientY-p.y;p.x=e.clientX;p.y=e.clientY;
@@ -1192,7 +1299,7 @@ cv.addEventListener('contextmenu',e=>e.preventDefault());
 // shift/alt + two fingers orbits. Safari on a Mac also sends rotate gestures.
 let padT=-1e9,pinchT=-1e9;
 cv.addEventListener('wheel',e=>{
-  e.preventDefault();
+  e.preventDefault();if(mode!=='bomb')return;
   const now=performance.now(),u=e.deltaMode===1?16:e.deltaMode===2?innerHeight:1,dx=e.deltaX*u,dy=e.deltaY*u;
   if(e.ctrlKey){pinchT=now;zoomAt(Math.exp(clamp(dy,-50,50)*.012),e.clientX,e.clientY);return}
   if(e.deltaMode===0&&(dx!==0||Math.abs(dy)<50))padT=now;   // a wheel notch is ≥ 100 px and never sideways
@@ -1204,7 +1311,7 @@ cv.addEventListener('wheel',e=>{
   zoomAt(1+Math.sign(dy)*.1,e.clientX,e.clientY);
 },{passive:false});
 let gest=null;
-cv.addEventListener('gesturestart',e=>{e.preventDefault();gest={r:e.rotation,d:cam.dist}});
+cv.addEventListener('gesturestart',e=>{e.preventDefault();if(mode==='bomb')gest={r:e.rotation,d:cam.dist}});
 cv.addEventListener('gesturechange',e=>{
   e.preventDefault();if(!gest)return;
   cam.yaw-=(e.rotation-gest.r)*Math.PI/180;gest.r=e.rotation;
@@ -1214,14 +1321,19 @@ cv.addEventListener('gestureend',e=>{e.preventDefault();gest=null});
 
 const keys=new Set();
 addEventListener('keydown',e=>{
-  if(e.code==='Space'){e.preventDefault();ensureAudio();const g=ground(innerWidth/2,innerHeight/2);if(g)drop(g.x,g.z);return}
   if(e.code==='KeyM'){toggleMute();return}
   if(e.code==='KeyL'){toggleLabels();return}
-  const n=['Digit1','Digit2','Digit3'].indexOf(e.code);if(n>=0){pickWeapon(n);return}
+  if(mode==='bomb'){
+    if(e.code==='Space'){e.preventDefault();ensureAudio();const g=ground(innerWidth/2,innerHeight/2);if(g)drop(g.x,g.z);return}
+    const n=['Digit1','Digit2','Digit3'].indexOf(e.code);if(n>=0){pickWeapon(n);return}
+  }else if(mode==='heli'){
+    if(e.code==='Space')e.preventDefault();
+    if(e.code==='KeyE'){ensureAudio();fireMissile();return}
+  }
   keys.add(e.code);
 });
 addEventListener('keyup',e=>keys.delete(e.code));
-function toggleMute(){muted=!muted;$('mute').textContent=muted?'Sound off':'Sound on';if(!muted)ensureAudio()}
+function toggleMute(){muted=!muted;$('mute').textContent=$('hmute').textContent=muted?'Sound off':'Sound on';if(!muted)ensureAudio()}
 $('mute').addEventListener('click',toggleMute);
 $('lblbtn').addEventListener('click',toggleLabels);$('lblbtn').textContent=labelsOn?'Labels on':'Labels off';
 function reset(){
@@ -1243,6 +1355,7 @@ function reset(){
     tc.list.forEach(t=>t.dead=false);
   });
   mmo.getContext('2d').clearRect(0,0,MMW,MMH);
+  reticle.visible=false;
   score=0;downCount=0;donCount=0;hud();
   combo=0;lastDown=-9;comboHud();
 }
@@ -1256,28 +1369,11 @@ function resize(){
 }
 addEventListener('resize',resize);resize();
 
-/* ---------- loop ---------- */
-let last=performance.now(),T=0,fr=0;
-function frame(now){
-  requestAnimationFrame(frame);
-  const dt=Math.min((now-last)/1000,.05);last=now;T+=dt;fr++;
+/* ---------- per-frame updates ---------- */
+// Everything that moves on its own, whatever the mode: bombs in flight, fire, effects, collapses, debris, dons.
+function updateWorld(dt){
   for(let i=0;i<cds.length;i++)cds[i]-=dt;
   shake=Math.max(0,shake-dt*1.6);
-
-  const sp=60*dt*(cam.dist/100);
-  let fx_=0,fz_=0;
-  if(keys.has('KeyW')||keys.has('ArrowUp'))fz_-=1;
-  if(keys.has('KeyS')||keys.has('ArrowDown'))fz_+=1;
-  if(keys.has('KeyA')||keys.has('ArrowLeft'))fx_-=1;
-  if(keys.has('KeyD')||keys.has('ArrowRight'))fx_+=1;
-  if(fx_||fz_){const s=Math.sin(cam.yaw),c=Math.cos(cam.yaw);cam.tx+=(fx_*c+fz_*s)*sp;cam.tz+=(-fx_*s+fz_*c)*sp;clampCam()}
-  if(keys.has('KeyQ'))cam.yaw-=1.2*dt;
-  if(keys.has('KeyE'))cam.yaw+=1.2*dt;
-  if(keys.has('KeyR'))cam.pitch=Math.min(PITCH_MAX,cam.pitch+.8*dt);
-  if(keys.has('KeyF'))cam.pitch=Math.max(PITCH_MIN,cam.pitch-.8*dt);
-
-  comboHud();armHud();
-
   for(let i=bombs.length-1;i>=0;i--){
     const b=bombs[i];let landed;
     b.mk.material.opacity=.5+.25*Math.sin(T*22);
@@ -1324,14 +1420,431 @@ function frame(now){
     }
   }
   updateDons(dt);
+}
+// Bombing mode: keyboard camera, HUD, and the overhead camera.
+function updateBomb(dt){
+  const sp=60*dt*(cam.dist/100);
+  let fx_=0,fz_=0;
+  if(keys.has('KeyW')||keys.has('ArrowUp'))fz_-=1;
+  if(keys.has('KeyS')||keys.has('ArrowDown'))fz_+=1;
+  if(keys.has('KeyA')||keys.has('ArrowLeft'))fx_-=1;
+  if(keys.has('KeyD')||keys.has('ArrowRight'))fx_+=1;
+  if(fx_||fz_){const s=Math.sin(cam.yaw),c=Math.cos(cam.yaw);cam.tx+=(fx_*c+fz_*s)*sp;cam.tz+=(-fx_*s+fz_*c)*sp;clampCam()}
+  if(keys.has('KeyQ'))cam.yaw-=1.2*dt;
+  if(keys.has('KeyE'))cam.yaw+=1.2*dt;
+  if(keys.has('KeyR'))cam.pitch=Math.min(PITCH_MAX,cam.pitch+.8*dt);
+  if(keys.has('KeyF'))cam.pitch=Math.max(PITCH_MIN,cam.pitch-.8*dt);
+  comboHud();armHud();
   if(fr%20===1){
-    treeVis(cam.tx,cam.tz,cam.dist);
     let best=null,bd=95*95;
     nearBuildings(cam.tx,cam.tz,95,b=>{if(b.name&&!b.dead){const d=(b.x-cam.tx)**2+(b.z-cam.tz)**2;if(d<bd){bd=d;best=b.name}}});
     $('where').textContent=best||'Oxford';
   }
-  mmDot.style.left=((cam.tx+MW/2)/MW*100)+'%';mmDot.style.top=((cam.tz+MH/2)/MH*100)+'%';
   placeCam();
+}
+
+/* ---------- helicopter mode ---------- */
+// A two-round campaign. The helicopter flies a route on autopilot; any flying input takes over (MANUAL), and
+// after HANDBACK seconds without input it steers back onto the route. You aim with the pointer, hold to fire
+// the door gun and launch missiles; armed dons along the route shoot back.
+const ROUNDS=[
+  {name:'City centre',via:['Westgate Centre','Christ Church Cathedral','Examination Schools','Radcliffe Camera','Sheldonian Theatre','Ashmolean Museum']},
+  {name:'Science Area & North',via:['Oxford University Museum of Natural History','Keble College Chapel','Andrew Wiles Building','Radcliffe Observatory','Denys Wilkinson Building','Clarendon Laboratory','Beecroft Building (Physics)']}
+];
+const ROUND_T=100,HANDBACK=3,AUTO_V=14,CRUISE=48;
+// firepower by level: gun rounds per second, damage per round, missile arming time
+const MK=[{rate:8,dmg:14,arm:8},{rate:12,dmg:19,arm:6},{rate:16,dmg:25,arm:4}],MK_AT=[0,2500,6000];
+const MISSILE={key:'missile',R:18,dmg:170,fall:.9,shake:.8};
+const H={g:null,rotor:null,tail:null,x:0,y:CRUISE,z:0,yaw:0,vx:0,vy:0,vz:0,yr:0,bank:0,
+  hp:100,auto:true,idle:0,s:0,round:0,phase:'off',t:0,mk:0,gunT:0,arm:0,kills:0,down0:0,waveT:0,firing:false,
+  cx:0,cy:CRUISE+20,cz:0,route:null,len:0};
+const shots=[],tracers=[],missiles=[];
+const xhair={x:innerWidth/2,y:innerHeight*.45,set:false},aimP=new THREE.Vector3();
+let heliBest=0;
+try{heliBest=+localStorage.getItem('oxford-break-heli-best')||0}catch(e){}
+
+/* model: built once from simple solids, facing -z */
+function heliModel(){
+  const lam=c=>new THREE.MeshLambertMaterial({color:c});
+  const navy=lam(0x22406a),stone=lam(0xe6bd62),dark=lam(0x1a2230),glass=new THREE.MeshLambertMaterial({color:0x9fc8d8,transparent:true,opacity:.8});
+  const g=new THREE.Group(),add=(geo,mat,x,y,z,sx,sy,sz)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.scale.set(sx,sy,sz);m.castShadow=true;g.add(m);return m};
+  add(sphereGeo,navy,0,0,0,1.9,1.5,3.2);
+  add(sphereGeo,glass,0,.25,-2.1,1.4,1.05,1.5);
+  add(boxGeo,stone,0,-.2,0,3.85,.35,3.6);
+  const boom=new THREE.CylinderGeometry(.22,.42,6.5,8);boom.rotateX(Math.PI/2);
+  add(boom,navy,0,.35,5.6,1,1,1);
+  add(boxGeo,navy,0,1.25,8.6,.18,2,1.3);
+  add(boxGeo,stone,0,.45,8.4,2.4,.12,.8);
+  for(const s of [-1,1]){add(boxGeo,dark,s*1.35,-1.85,-.2,.18,.18,5.2);add(boxGeo,dark,s*1.1,-1.3,-1.4,.12,1,.12);add(boxGeo,dark,s*1.1,-1.3,1.1,.12,1,.12)}
+  add(boxGeo,dark,0,1.55,0,.5,.6,.5);
+  const rotor=new THREE.Group();rotor.position.set(0,1.95,0);g.add(rotor);
+  for(const a of [0,Math.PI/2]){const b=new THREE.Mesh(boxGeo,dark);b.scale.set(15,.08,.55);b.rotation.y=a;rotor.add(b)}
+  const tail=new THREE.Group();tail.position.set(.25,1.3,8.9);g.add(tail);
+  for(const a of [0,Math.PI/2]){const b=new THREE.Mesh(boxGeo,dark);b.scale.set(.06,2.6,.22);b.rotation.x=a;tail.add(b)}
+  g.scale.setScalar(1.3);
+  return {g,rotor,tail};
+}
+
+/* route: Catmull-Rom through the landmarks of the round, resampled every 2 m */
+function buildRoute(names){
+  const pts=[];
+  for(const n of names){
+    let best=null;for(const b of buildings)if(b.name===n&&(!best||b.area>best.area))best=b;
+    if(best)pts.push([best.x,best.z]);
+  }
+  if(pts.length<2){const c=buildings.find(b=>b.name==='Radcliffe Camera')||{x:0,z:0};pts.length=0;for(let i=0;i<6;i++)pts.push([c.x+Math.cos(i)*200,c.z+Math.sin(i)*200])}
+  // lead-in: start 120 m before the first landmark
+  const [ax,az]=pts[0],[bx,bz]=pts[1],l=Math.hypot(bx-ax,bz-az)||1;pts.unshift([ax-(bx-ax)/l*120,az-(bz-az)/l*120]);
+  const out=[],P=i=>pts[clamp(i,0,pts.length-1)];
+  for(let i=0;i<pts.length-1;i++){
+    const p0=P(i-1),p1=P(i),p2=P(i+1),p3=P(i+2),seg=Math.hypot(p2[0]-p1[0],p2[1]-p1[1]),n=Math.max(2,Math.ceil(seg/2));
+    for(let k=0;k<n;k++){
+      const t=k/n,t2=t*t,t3=t2*t,f=(a,b,c,d)=>.5*(2*b+(-a+c)*t+(2*a-5*b+4*c-d)*t2+(-a+3*b-3*c+d)*t3);
+      out.push(onMap(f(p0[0],p1[0],p2[0],p3[0]),f(p0[1],p1[1],p2[1],p3[1])));
+    }
+  }
+  out.push(pts[pts.length-1]);
+  const cum=[0];for(let i=1;i<out.length;i++)cum.push(cum[i-1]+Math.hypot(out[i][0]-out[i-1][0],out[i][1]-out[i-1][1]));
+  return {pts:out,cum,len:cum[cum.length-1]};
+}
+function routeAt(s){
+  const r=H.route;s=clamp(s,0,r.len);
+  let lo=0,hi=r.cum.length-1;while(hi-lo>1){const m=(lo+hi)>>1;if(r.cum[m]<=s)lo=m;else hi=m}
+  const k=(s-r.cum[lo])/((r.cum[hi]-r.cum[lo])||1),a=r.pts[lo],b=r.pts[hi];
+  return [a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k];
+}
+function nearestS(x,z){
+  const r=H.route;let best=0,bd=1e18;
+  for(let i=0;i<r.pts.length;i+=3){const d=(r.pts[i][0]-x)**2+(r.pts[i][1]-z)**2;if(d<bd){bd=d;best=r.cum[i]}}
+  return best;
+}
+function drawRoute(){
+  const o=mmo.getContext('2d');o.strokeStyle='rgba(230,189,98,.9)';o.lineWidth=1.6;o.setLineDash([4,3]);o.beginPath();
+  H.route.pts.forEach(([x,z],i)=>i?o.lineTo(mx(x),mz(z)):o.moveTo(mx(x),mz(z)));o.stroke();o.setLineDash([]);
+}
+
+/* campaign flow */
+function startCampaign(){
+  if(!H.g){const m=heliModel();H.g=m.g;H.rotor=m.rotor;H.tail=m.tail}
+  scene.add(H.g);
+  H.hp=100;H.mk=0;H.kills=0;
+  startRound(0);
+}
+function startRound(i){
+  // the map is rebuilt for each round, but the score carries over
+  const keep=[score,downCount,donCount];
+  reset();clearHeli();
+  if(i>0){[score,downCount,donCount]=keep;hud()}
+  H.round=i;H.route=buildRoute(ROUNDS[i].via);H.s=0;H.t=ROUND_T;H.down0=downCount;H.kills0=H.kills;H.score0=score;
+  const [x,z]=routeAt(0),[x2,z2]=routeAt(30);
+  H.x=x;H.z=z;H.y=CRUISE;H.vx=H.vy=H.vz=0;H.yaw=Math.atan2(-(x2-x),-(z2-z));H.auto=true;H.idle=0;H.arm=0;H.gunT=0;H.waveT=8;
+  H.cx=H.x+Math.sin(H.yaw)*45;H.cz=H.z+Math.cos(H.yaw)*45;H.cy=H.y+22;
+  H.phase='fly';H.g.visible=true;
+  for(let k=0;k<14;k++)spawnArmed(rr()*H.route.len);
+  drawRoute();
+  $('hround').textContent='Round '+(i+1)+' · '+ROUNDS[i].name;
+  $('card').hidden=true;
+  banner('Round '+(i+1),ROUNDS[i].name);
+  heliHud();
+}
+function endRound(){
+  H.phase='done';H.firing=false;
+  const last=H.round===ROUNDS.length-1;
+  const lines=fmt(score-H.score0)+' points · '+(H.kills-H.kills0)+' dons · '+(downCount-H.down0)+' buildings';
+  if(last){
+    const rec=score>heliBest;if(rec){heliBest=score;try{localStorage.setItem('oxford-break-heli-best',String(heliBest))}catch(e){}}
+    showCard(rec?'New best flight!':'Campaign complete',lines+'. Total '+fmt(score)+' · best '+fmt(heliBest)+'.','Fly again',()=>startCampaign(),'Menu',()=>setMode('menu'));
+  }else showCard('Round '+(H.round+1)+' clear',lines+'. HP restored to '+Math.min(100,Math.round(H.hp)+30)+'.','Next round →',()=>{H.hp=Math.min(100,H.hp+30);startRound(H.round+1)},'Menu',()=>setMode('menu'));
+  saveLife();
+}
+function shotDown(){
+  H.phase='crash';H.firing=false;H.t=0;boom(1.6);shake=1.5;
+}
+function finishCrash(){
+  explode(H.x,H.z,MISSILE);H.g.visible=false;H.phase='dead';
+  const rec=score>heliBest;if(rec){heliBest=score;try{localStorage.setItem('oxford-break-heli-best',String(heliBest))}catch(e){}}
+  showCard('Shot down','Round '+(H.round+1)+' · '+fmt(score)+' points · '+H.kills+' dons. Best '+fmt(heliBest)+'.','Try again',()=>startCampaign(),'Menu',()=>setMode('menu'));
+  saveLife();
+}
+function stopHeli(){H.phase='off';H.firing=false;if(H.g)scene.remove(H.g);clearHeli();$('card').hidden=true}
+function clearHeli(){
+  for(const a of [shots,tracers,missiles])a.splice(0).forEach(o=>{scene.remove(o.m);o.m.material.dispose()});
+  for(let i=dons.length-1;i>=0;i--)if(dons[i].st==='arm'){scene.remove(dons[i].g);dons.splice(i,1)}
+}
+function showCard(t,s,a,fa,b,fb){
+  $('cardT').textContent=t;$('cardS').textContent=s;
+  $('cardA').textContent=a;$('cardA').onclick=fa;$('cardB').textContent=b;$('cardB').onclick=fb;
+  $('card').hidden=false;
+}
+let bannerT=0;
+function banner(t,s){$('bannerT').textContent=t;$('bannerS').textContent=s;$('banner').hidden=false;bannerT=2.4}
+
+/* armed dons stand on open ground near the route and fire glowing rounds at where the helicopter will be */
+function spawnArmed(s){
+  if(dons.filter(d=>d.st==='arm').length>=22)return;
+  for(let k=0;k<6;k++){
+    const [x0,z0]=routeAt(s),[x1,z1]=routeAt(s+4),l=Math.hypot(x1-x0,z1-z0)||1,side=rr()<.5?-1:1,off=10+rr()*30;
+    const x=x0-(z1-z0)/l*off*side,z=z0+(x1-x0)/l*off*side;
+    if(insideAlive(x,z,1.2)||Math.abs(x)>MW/2||Math.abs(z)>MH/2)continue;
+    const g=donMesh(x,z);
+    // a gun across the chest so armed dons read differently from the ones running away
+    const gun=new THREE.Mesh(boxGeo,donMat);gun.scale.set(.12,.12,.9);gun.position.set(.25,1.05,-.3);g.add(gun);
+    dons.push({g,x,z,h:0,sp:0,st:'arm',t:rr()*10,tm:0,vx:0,vy:0,vz:0,fire:1+rr()*2});
+    return;
+  }
+}
+const shotMat=()=>glow(0xff5a3a,.95);
+function armedDon(d,dt){
+  d.g.position.set(d.x,0,d.z);
+  if(H.phase!=='fly')return;
+  const dx=H.x-d.x,dz=H.z-d.z;d.g.rotation.set(0,Math.atan2(-dx,-dz),0);
+  if((d.fire-=dt)>0)return;
+  d.fire=2.2+rr()*2.2;
+  const dist=Math.hypot(dx,H.y,dz);if(dist>140)return;
+  const tt=dist/45,px=H.x+H.vx*tt+(rr()-.5)*16,py=H.y+H.vy*tt+(rr()-.5)*8,pz=H.z+H.vz*tt+(rr()-.5)*16;
+  const ox=d.x,oy=3.5,oz=d.z,L=Math.hypot(px-ox,py-oy,pz-oz)||1;
+  const m=new THREE.Mesh(sphereGeo,shotMat());m.scale.setScalar(.7);m.position.set(ox,oy,oz);scene.add(m);
+  shots.push({m,vx:(px-ox)/L*45,vy:(py-oy)/L*45,vz:(pz-oz)/L*45,life:5});
+}
+
+/* aiming: march along the pointer ray until it is under a standing roof or the ground */
+function aimRay(sx,sy,out){
+  ndc.set(sx/innerWidth*2-1,-(sy/innerHeight)*2+1);
+  ray.setFromCamera(ndc,camera);
+  const o=ray.ray.origin,d=ray.ray.direction;
+  for(let t=4;t<700;t+=2.5){
+    const x=o.x+d.x*t,y=o.y+d.y*t,z=o.z+d.z*t;
+    if(y<=0){const tg=-o.y/(d.y||-1e-6);return out.set(o.x+d.x*tg,0,o.z+d.z*tg)}
+    if(y>75)continue;
+    let hit=false;
+    nearBuildings(x,z,.5,b=>{
+      if(hit||b.dead||y>b.h*b.s||x<b.minx||x>b.maxx||z<b.minz||z>b.maxz||!inPoly(b.r,x,z))return;
+      for(const h of b.holes)if(inPoly(h,x,z))return;
+      hit=true;
+    });
+    if(hit)return out.set(x,y,z);
+  }
+  return out.set(o.x+d.x*700,0,o.z+d.z*700);
+}
+function gunPos(){
+  const s=Math.sin(H.yaw),c=Math.cos(H.yaw);   // the door is on the right-hand side
+  return [H.x+c*2.4,H.y-.8,H.z-s*2.4];
+}
+const tracerGeo=new THREE.BoxGeometry(.25,.25,3.2);
+function fireGun(){
+  const [ox,oy,oz]=gunPos(),sp=1.6,tx=aimP.x+(rr()-.5)*sp,ty=aimP.y+(rr()-.5)*sp*.5,tz=aimP.z+(rr()-.5)*sp;
+  const L=Math.hypot(tx-ox,ty-oy,tz-oz)||1;
+  const m=new THREE.Mesh(tracerGeo,glow(0xffe08a,.95));m.position.set(ox,oy,oz);m.lookAt(tx,ty,tz);scene.add(m);
+  tracers.push({m,tx,ty,tz,left:L,vx:(tx-ox)/L,vy:(ty-oy)/L,vz:(tz-oz)/L});
+  if(ac&&!muted&&rr()<.5){
+    const t=ac.currentTime,s=ac.createBufferSource();s.buffer=noise;s.playbackRate.value=2.2;
+    const g=ac.createGain();g.gain.setValueAtTime(.18,t);g.gain.exponentialRampToValueAtTime(.001,t+.06);s.connect(g).connect(out);s.start(t,rr()*.5);s.stop(t+.07);
+  }
+}
+function fireMissile(){
+  if(mode!=='heli'||H.phase!=='fly'||H.arm>0)return;
+  H.arm=MK[H.mk].arm;
+  const [ox,oy,oz]=gunPos(),tx=aimP.x,ty=aimP.y,tz=aimP.z,L=Math.hypot(tx-ox,ty-oy,tz-oz)||1;
+  const m=new THREE.Mesh(tracerGeo,glow(0xffffff,1));m.scale.set(2,2,.9);m.position.set(ox,oy,oz);m.lookAt(tx,ty,tz);scene.add(m);
+  missiles.push({m,tx,ty,tz,left:L,vx:(tx-ox)/L,vy:(ty-oy)/L,vz:(tz-oz)/L,smoke:0});
+  whistle(500,1400,.5,.06);
+}
+function spark(x,y,z){
+  const m=new THREE.Mesh(sphereGeo,glow(0xffd27a,.95));m.position.set(x,y+.3,z);
+  addFx(m,.25,f=>{m.scale.setScalar(.6+f*2.2);m.material.opacity=.95*(1-f)});
+}
+
+/* input: hold the pointer to fire; on touch the joystick (bottom-left) flies, drags elsewhere aim and fire */
+const joy={id:null,x:0,y:0,ox:0,oy:0};
+cv.addEventListener('pointerdown',e=>{
+  if(mode!=='heli')return;
+  cv.setPointerCapture(e.pointerId);
+  xhair.x=e.clientX;xhair.y=e.clientY;xhair.set=true;
+  if(e.button===2){fireMissile();return}
+  H.firing=true;H.firePtr=e.pointerId;
+});
+cv.addEventListener('pointermove',e=>{
+  if(mode!=='heli')return;
+  if(e.pointerType==='mouse'||e.pointerId===H.firePtr){xhair.x=e.clientX;xhair.y=e.clientY;xhair.set=true}
+});
+const heliUp=e=>{if(e.pointerId===H.firePtr){H.firing=false;H.firePtr=null}};
+cv.addEventListener('pointerup',heliUp);cv.addEventListener('pointercancel',heliUp);
+$('joy').addEventListener('pointerdown',e=>{
+  e.preventDefault();$('joy').setPointerCapture(e.pointerId);
+  const r=$('joy').getBoundingClientRect();joy.id=e.pointerId;joy.ox=r.left+r.width/2;joy.oy=r.top+r.height/2;joyMove(e);
+});
+function joyMove(e){
+  if(e.pointerId!==joy.id)return;
+  const r=$('joy').offsetWidth/2||60,dx=clamp((e.clientX-joy.ox)/r,-1,1),dy=clamp((e.clientY-joy.oy)/r,-1,1);
+  joy.x=dx;joy.y=dy;$('joyk').style.transform='translate('+(dx*r*.6)+'px,'+(dy*r*.6)+'px)';
+}
+$('joy').addEventListener('pointermove',joyMove);
+const joyEnd=e=>{if(e.pointerId!==joy.id)return;joy.id=null;joy.x=joy.y=0;$('joyk').style.transform=''};
+$('joy').addEventListener('pointerup',joyEnd);$('joy').addEventListener('pointercancel',joyEnd);
+$('missile').addEventListener('click',()=>{ensureAudio();fireMissile()});
+
+/* per frame */
+function roofUnder(x,z){
+  let top=0;
+  nearBuildings(x,z,3,b=>{if(!b.dead&&bDist(b,x,z,3)<3)top=Math.max(top,b.h*b.s)});
+  return top;
+}
+const hv=new THREE.Vector3();
+function updateHeli(dt){
+  if(bannerT>0&&(bannerT-=dt)<=0)$('banner').hidden=true;
+  if(H.phase==='off')return;
+  const fly=H.phase==='fly';
+  if(fly){
+    H.t-=dt;
+    // input
+    const kf=(keys.has('KeyW')||keys.has('ArrowUp')?1:0)-(keys.has('KeyS')||keys.has('ArrowDown')?1:0)-joy.y;
+    const kt=(keys.has('KeyD')||keys.has('ArrowRight')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')?1:0)+joy.x;
+    const kl=(keys.has('Space')?1:0)-(keys.has('ShiftLeft')||keys.has('ShiftRight')?1:0);
+    if(Math.abs(kf)>.15||Math.abs(kt)>.15||kl){
+      if(H.auto)banner('Manual','you have the controls');
+      H.auto=false;H.idle=0;
+    }else if(!H.auto&&(H.idle+=dt)>HANDBACK){H.auto=true;H.s=nearestS(H.x,H.z);banner('Autopilot','back on the route')}
+    const fwx=-Math.sin(H.yaw),fwz=-Math.cos(H.yaw);
+    if(H.auto){
+      // advance along the route while close to it; aim 40 m ahead
+      const [rx,rz]=routeAt(H.s),off=Math.hypot(rx-H.x,rz-H.z);
+      if(off<30)H.s+=AUTO_V*dt;
+      const [tx,tz]=routeAt(H.s+40),want_=Math.atan2(-(tx-H.x),-(tz-H.z));
+      let dy=want_-H.yaw;dy=Math.atan2(Math.sin(dy),Math.cos(dy));
+      H.yr=clamp(dy*1.5,-1.1,1.1);
+      const v=AUTO_V+Math.min(14,off*.3),k=1-Math.exp(-1.2*dt);
+      H.vx+=(fwx*v-H.vx)*k;H.vz+=(fwz*v-H.vz)*k;
+      const want=clamp(Math.max(CRUISE,roofUnder(H.x+fwx*25,H.z+fwz*25)+22),30,85);
+      H.vy=clamp((want-H.y)*1.2,-10,10);
+      if(H.s>=H.route.len-5)H.t=Math.min(H.t,0);
+    }else{
+      H.yr=-kt*1.4;
+      H.vx+=fwx*kf*22*dt;H.vz+=fwz*kf*22*dt;
+      const dr=Math.exp(-.8*dt);H.vx*=dr;H.vz*=dr;
+      // Space / Shift climb and descend; with neither held it hovers at the current height
+      H.vy+=((kl?kl*12:0)-H.vy)*(1-Math.exp(-3*dt));
+    }
+    H.yaw+=H.yr*dt;
+  }else if(H.phase==='crash'){
+    H.t+=dt;H.yr=4;H.yaw+=H.yr*dt;H.vy-=18*dt;H.vx*=.99;H.vz*=.99;
+    if(rr()<.5){const m=new THREE.Mesh(sphereGeo,glow(0x3a3a3a,.6));m.position.set(H.x,H.y,H.z);addFx(m,1.2,f=>{m.scale.setScalar(1.5+f*4);m.material.opacity=.6*(1-f)})}
+  }
+  if(fly||H.phase==='crash'){
+    H.x+=H.vx*dt;H.y+=H.vy*dt;H.z+=H.vz*dt;
+    [H.x,H.z]=onMap(H.x,H.z);H.y=Math.min(H.y,95);
+    const roof=roofUnder(H.x,H.z);
+    if(H.phase==='crash'&&(H.y<=roof+1||H.y<=1))finishCrash();
+    else if(H.y<roof+4){H.y=roof+4;H.vy=Math.max(H.vy,0);if(fly){hurt(14*dt)}}
+    else if(H.y<12){H.y=12;H.vy=Math.max(0,H.vy)}
+  }
+  if(H.g&&H.g.visible){
+    const fwd=-(H.vx*Math.sin(H.yaw)+H.vz*Math.cos(H.yaw));
+    H.bank+=(clamp(-H.yr*.35,-.5,.5)-H.bank)*(1-Math.exp(-4*dt));
+    H.g.position.set(H.x,H.y,H.z);H.g.rotation.set(-clamp(fwd*.012,-.25,.25),H.yaw,H.bank,'YXZ');
+    H.rotor.rotation.y+=dt*38;H.tail.rotation.x+=dt*50;
+  }
+  if(fly){
+    // weapons
+    const lvl=score>=MK_AT[2]?2:score>=MK_AT[1]?1:0;
+    if(lvl>H.mk){H.mk=lvl;banner('MK '+['I','II','III'][lvl],'more firepower');whistle(400,1200,.4,.06)}
+    H.arm=Math.max(0,H.arm-dt);
+    if(!xhair.set){xhair.x=innerWidth/2;xhair.y=innerHeight*.58}
+    aimRay(xhair.x,xhair.y,aimP);
+    H.gunT-=dt;
+    if(H.firing)while(H.gunT<=0){fireGun();H.gunT+=1/MK[H.mk].rate}
+    else H.gunT=Math.max(H.gunT,0);
+    // more armed dons further along the route
+    if((H.waveT-=dt)<=0){H.waveT=10;for(let k=0;k<4;k++)spawnArmed(H.s+80+rr()*200)}
+    if(H.t<=0)endRound();
+  }
+  for(let i=tracers.length-1;i>=0;i--){
+    const t=tracers[i],step=420*dt;t.left-=step;
+    if(t.left<=0){
+      scene.remove(t.m);t.m.material.dispose();tracers.splice(i,1);
+      spark(t.tx,t.ty,t.tz);damageArea(t.tx,t.tz,3.5,MK[H.mk].dmg,.6,0,4);hud();
+      continue;
+    }
+    t.m.position.x+=t.vx*step;t.m.position.y+=t.vy*step;t.m.position.z+=t.vz*step;
+  }
+  for(let i=missiles.length-1;i>=0;i--){
+    const t=missiles[i],step=130*dt;t.left-=step;
+    if(t.left<=0){scene.remove(t.m);t.m.material.dispose();missiles.splice(i,1);explode(t.tx,t.tz,MISSILE);continue}
+    t.m.position.x+=t.vx*step;t.m.position.y+=t.vy*step;t.m.position.z+=t.vz*step;
+    if((t.smoke-=dt)<=0){t.smoke=.03;const m=new THREE.Mesh(sphereGeo,glow(0xcfc8bc,.5));m.position.copy(t.m.position);addFx(m,.8,f=>{m.scale.setScalar(.6+f*2);m.material.opacity=.5*(1-f)})}
+  }
+  for(let i=shots.length-1;i>=0;i--){
+    const s=shots[i];s.life-=dt;
+    s.m.position.x+=s.vx*dt;s.m.position.y+=s.vy*dt;s.m.position.z+=s.vz*dt;
+    const p=s.m.position;
+    if(fly&&Math.hypot(p.x-H.x,p.y-H.y,p.z-H.z)<3.4){hurt(6);s.life=0}
+    if(s.life<=0||p.y<0){scene.remove(s.m);s.m.material.dispose();shots.splice(i,1)}
+  }
+  // chase camera: behind and above, looking a little ahead and down
+  const sy=Math.sin(H.yaw),cy=Math.cos(H.yaw),k=1-Math.exp(-3.5*dt);
+  H.cx+=(H.x+sy*44-H.cx)*k;H.cz+=(H.z+cy*44-H.cz)*k;H.cy+=(H.y+22-H.cy)*k;
+  const s=shake*shake*1.4;
+  camera.position.set(H.cx+(rr()-.5)*s,H.cy+(rr()-.5)*s,H.cz+(rr()-.5)*s);
+  camera.lookAt(H.x-sy*30,H.y-10,H.z-cy*30);
+  cam.tx=H.x-sy*60;cam.tz=H.z-cy*60;cam.dist=150;
+  fitShadow(H.x,H.z,150,H.yaw);
+  heliHud();
+}
+function hurt(n){
+  if(H.phase!=='fly')return;
+  H.hp-=n;
+  if(n>=2){const e=$('hurt');e.classList.remove('go');void e.offsetWidth;e.classList.add('go')}
+  if(H.hp<=0){H.hp=0;shotDown()}
+}
+function heliHud(){
+  $('hscore').textContent=fmt(score);$('hkills').textContent=H.kills;
+  const t=Math.max(0,Math.ceil(H.t));$('htime').textContent=Math.floor(t/60)+':'+String(t%60).padStart(2,'0');
+  $('hpv').textContent=Math.ceil(H.hp);$('hpfill').style.transform='scaleX('+(H.hp/100).toFixed(3)+')';
+  $('hmk').textContent='MK '+['I','II','III'][H.mk];
+  $('hauto').textContent=H.auto?'Autopilot':'Manual · autopilot in '+Math.max(0,Math.ceil(HANDBACK-H.idle))+'s';
+  $('hauto').classList[H.auto?'remove':'add']('man');
+  $('missile').style.setProperty('--cd',(H.arm/MK[H.mk].arm).toFixed(3));$('missile').classList[H.arm>0?'add':'remove']('cool');
+  $('xhair').style.transform='translate('+xhair.x+'px,'+xhair.y+'px)';
+  mmDot.style.left=((H.x+MW/2)/MW*100)+'%';mmDot.style.top=((H.z+MH/2)/MH*100)+'%';
+}
+
+/* ---------- modes ---------- */
+// menu: the map turns slowly behind the title; bomb: free destruction; heli: the helicopter campaign.
+function setMode(m){
+  if(mode==='heli'&&m!=='heli')stopHeli();
+  mode=m;
+  document.body.className='mode-'+m;
+  ptrs.clear();keys.clear();reticle.visible=false;
+  const rc=buildings.find(b=>b.name==='Radcliffe Camera');
+  if(m==='menu'){
+    if(rc){cam.tx=rc.x;cam.tz=rc.z}
+    cam.dist=280;cam.pitch=.62;
+    $('recLife').textContent=fmt(life);$('recFlight').textContent=heliBest?fmt(heliBest):'—';
+  }else if(m==='bomb'){
+    reset();
+    if(rc){cam.tx=rc.x;cam.tz=rc.z}
+    cam.dist=140;cam.pitch=.92;cam.yaw=.55;
+  }else{
+    ensureAudio();startCampaign();
+  }
+  try{history.replaceState(null,'',m==='menu'?location.pathname:'?mode='+m)}catch(e){}
+}
+$('playBomb').addEventListener('click',()=>{ensureAudio();setMode('bomb')});
+$('playHeli').addEventListener('click',()=>setMode('heli'));
+$('tomenu').addEventListener('click',()=>setMode('menu'));
+$('hmenu').addEventListener('click',()=>setMode('menu'));
+$('hmute').addEventListener('click',toggleMute);
+
+/* ---------- loop ---------- */
+let last=performance.now(),T=0,fr=0;
+function frame(now){
+  requestAnimationFrame(frame);
+  const dt=Math.min((now-last)/1000,.05);last=now;T+=dt;fr++;
+  updateWorld(dt);
+  if(mode==='bomb')updateBomb(dt);
+  else if(mode==='heli')updateHeli(dt);
+  else{cam.yaw+=dt*.06;placeCam()}
+  if(fr%20===1)treeVis(cam.tx,cam.tz,cam.dist);
+  if(mode!=='heli'){mmDot.style.left=((cam.tx+MW/2)/MW*100)+'%';mmDot.style.top=((cam.tz+MH/2)/MH*100)+'%'}
   renderer.render(scene,camera);
   updateLabels();
 }
@@ -1339,9 +1852,10 @@ function frame(now){
 setTimeout(()=>{
   try{
     buildAll();drawMini();buildLabels();
-    const rc=buildings.find(b=>b.name==='Radcliffe Camera');
-    if(rc){cam.tx=rc.x;cam.tz=rc.z}
-    hud();treeVis(cam.tx,cam.tz,cam.dist);
+    hud();
+    const q=new URLSearchParams(location.search).get('mode');
+    setMode(q==='bomb'||q==='heli'?q:'menu');
+    treeVis(cam.tx,cam.tz,cam.dist);
     requestAnimationFrame(frame);
     $('loading').hidden=true;
   }catch(err){
