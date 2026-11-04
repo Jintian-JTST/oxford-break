@@ -1,0 +1,101 @@
+<title>Oxford Break</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=IBM+Plex+Mono:wght@400;500&family=Work+Sans:wght@400;600&display=swap">
+<style>
+/* Layout: full-bleed 3D map; HUD floats above: brand, score and buttons on top; hint and stats bottom-left, minimap bottom-right. */
+:root{
+  --ink:#0a1c36;
+  --panel:rgba(8,24,48,.8);
+  --chalk:#eef0ea;
+  --stone:#e6bd62;
+  --alarm:#ff6a3d;
+  --mute:#9fb2c8;
+  --f-display:"Bowlby One","Arial Black",Impact,sans-serif;
+  --f-body:"Work Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{
+  margin:0;background:var(--ink);color:var(--chalk);font-family:var(--f-body);
+  display:flex;flex-direction:column;justify-content:space-between;
+  padding-block:12px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  overflow:hidden;user-select:none;-webkit-user-select:none;
+}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:crosshair}
+.hud{position:relative;z-index:2;pointer-events:none;display:flex;gap:12px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap}
+.brand b{display:block;font-family:var(--f-display);font-size:clamp(20px,4.5vw,30px);line-height:1;letter-spacing:.01em;text-shadow:0 2px 0 rgba(0,0,0,.35)}
+.brand span{display:block;margin-top:5px;font:500 11px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--stone)}
+.score{text-align:center;background:var(--panel);padding:8px 18px 7px;border-radius:6px;min-width:110px}
+.score span{display:block;font:400 clamp(26px,6vw,38px)/1 var(--f-display);color:var(--stone);font-variant-numeric:tabular-nums}
+.score small{font:500 10px/1 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+.score small i{font-style:normal;color:var(--alarm);letter-spacing:.04em}
+.score em{display:block;margin-top:5px;font:500 12px/1 var(--f-mono);font-style:normal;font-variant-numeric:tabular-nums;color:var(--chalk)}
+.score em.low{color:var(--alarm)}
+.btns{display:flex;gap:8px}
+button{pointer-events:auto;font:600 13px/1 var(--f-body);color:var(--chalk);background:var(--panel);border:1px solid rgba(255,255,255,.18);padding:10px 14px;border-radius:6px;cursor:pointer}
+button:hover{border-color:var(--stone)}
+button:focus-visible{outline:2px solid var(--stone);outline-offset:2px}
+button.primary{background:var(--stone);color:var(--ink);border-color:var(--stone)}
+button.pulse{animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{50%{transform:scale(1.08)}}
+.bottom{align-items:flex-end;flex-wrap:nowrap}
+.left{display:flex;flex-direction:column;gap:8px;min-width:0}
+.stats{display:flex;gap:1px;background:var(--panel);border-radius:6px;overflow:hidden;align-self:flex-start}
+.stats div{padding:8px 14px;min-width:84px}
+.stats b{display:block;font:500 17px/1.1 var(--f-mono);font-variant-numeric:tabular-nums}
+.stats small{font:500 10px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+.hint{font:500 11px/1.5 var(--f-mono);background:var(--panel);padding:8px 12px;border-radius:6px;max-width:330px}
+.where{font:500 11px/1 var(--f-mono);letter-spacing:.08em;color:var(--stone);background:var(--panel);padding:7px 10px;border-radius:6px;align-self:flex-start;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#mm{position:relative;pointer-events:auto;flex:none;width:clamp(120px,24vw,200px);aspect-ratio:4788/3538;border-radius:6px;overflow:hidden;border:1px solid rgba(255,255,255,.22);background:#1c2f45;touch-action:none;cursor:pointer}
+#mm canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#mmdot{position:absolute;width:14px;height:14px;margin:-7px 0 0 -7px;border:2px solid var(--alarm);border-radius:50%;pointer-events:none}
+.toast{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);z-index:3;text-align:center;background:var(--panel);padding:18px 24px;border-radius:8px;max-width:calc(100vw - 32px);pointer-events:none}
+.toast b{display:block;font:400 22px/1.2 var(--f-display);color:var(--stone);margin-bottom:6px}
+.toast span{font-size:14px}
+#loading{position:fixed;inset:0;z-index:5;background:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:24px}
+#loading b{font:400 clamp(28px,7vw,48px)/1 var(--f-display);color:var(--stone)}
+#loading span{font:500 12px/1.6 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
+#pops{position:fixed;inset:0;z-index:2;pointer-events:none;overflow:hidden}
+.pop{position:absolute;transform:translate(-50%,-50%);font:400 20px/1 var(--f-display);color:var(--stone);text-shadow:0 2px 0 rgba(0,0,0,.6);white-space:nowrap;animation:rise 1.2s ease-out forwards}
+.pop.big{font-size:26px;color:var(--alarm)}
+.pop.don{color:var(--chalk);font-size:17px}
+@keyframes rise{from{opacity:1;margin-top:0}to{opacity:0;margin-top:-70px}}
+@media (max-width:560px){.hint{display:none}.stats div{min-width:0;padding:7px 10px}}
+@media (prefers-reduced-motion:reduce){.pop{animation-duration:.01s}button.pulse{animation:none}}
+</style>
+
+<canvas id="c" aria-label="Stylised 3D map of Oxford, seen from above"></canvas>
+<div id="pops"></div>
+
+<header class="hud">
+  <div class="brand"><b>Oxford Break</b><span>OpenStreetMap, stylised</span></div>
+  <div class="score"><span id="score">0</span><small>points <i id="mult"></i></small><em id="clock">1:00</em></div>
+  <div class="btns"><button id="mute" type="button">Sound on</button><button id="rebuild" type="button">Rebuild</button></div>
+</header>
+
+<div class="toast" id="toast" hidden><b id="toastT">Time's up.</b><span id="toastS">Hit Rebuild for another round.</span></div>
+<div id="loading"><b>Oxford Break</b><span id="loadmsg">Raising 15,000 buildings…</span></div>
+
+<footer class="hud bottom">
+  <div class="left">
+    <div class="hint">Tap or click to drop a bomb · 60 s per round<br>Drag to pan · wheel or pinch to zoom<br>Right-drag or Q/E · R/F to rotate and tilt<br>Space drops at centre · click the map to jump</div>
+    <div class="where" id="where">—</div>
+    <div class="stats">
+      <div><b id="down">0</b><small>Buildings down</small></div>
+      <div><b id="dons">0</b><small>Dons launched</small></div>
+      <div><b id="life">0</b><small>Lifetime</small></div>
+    </div>
+  </div>
+  <div id="mm" title="Click to jump"><canvas id="mmc"></canvas><canvas id="mmo"></canvas><div id="mmdot"></div></div>
+</footer>
+
+<script id="data" type="application/json">/*DATA*/</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/*GAME*/
+</script>
