@@ -85,3 +85,24 @@ console.log('summary shown',!els.summary.hidden,'|',els.sumKind.textContent,'|',
 console.log('list:',els.sumList.innerHTML.replace(/<\/dd>/g,'; ').replace(/<[^>]+>/g,' ').replace(/\s+/g,' '));
 els.sumAgain.fire('click');console.log('play again -> booklet',!els.guide.hidden,'summary hidden',els.summary.hidden);
 els.gMenu.fire('click');step(10);console.log('mode',document.body.className,'best',els.recFlight.textContent);
+
+// --- fighter jet: booklet, level flight, bombs on the ring, cannon, cockpit view, a dive into the ground, then the summary
+els.playJet.fire('click');console.log('mode',document.body.className,'booklet shown',!els.guide.hidden,'|',els.gT.textContent,'|',els.gOptL.textContent);
+step(30);els.gStart.fire('click');step(120);
+console.log('jet 2s: speed',els.jspd.textContent,'alt',els.jalt.textContent,'time',els.jtime.textContent,'bombs',els.jbn.textContent);
+for(let k=0;k<4;k++){win.fire('keydown',{code:'Space'});step(25)}
+console.log('after 4 drops: bombs',els.jbn.textContent);
+step(240);console.log('bombs landed: score',els.jscore.textContent,'down',els.jdown.textContent,'bombs',els.jbn.textContent);
+c.fire('pointermove',{...ev,clientY:560});c.fire('pointerdown',{...ev,clientY:560});step(60);c.fire('pointerup',{...ev,clientY:560});
+win.fire('keydown',{code:'KeyC'});step(30);console.log('view',els.jviewT.textContent,'score',els.jscore.textContent);win.fire('keydown',{code:'KeyC'});
+win.fire('keydown',{code:'KeyW'});win.fire('keydown',{code:'ShiftLeft'});step(90);console.log('climb+afterburner: speed',els.jspd.textContent,'alt',els.jalt.textContent,'top cap',els['k-KeyR'].textContent);
+win.fire('keyup',{code:'ShiftLeft'});win.fire('keyup',{code:'KeyW'});
+win.fire('keydown',{code:'KeyD'});step(120);win.fire('keyup',{code:'KeyD'});
+win.fire('keydown',{code:'KeyS'});let warned=false;for(let k=0;k<600&&els.summary.hidden;k++){step(1);if(!els.jwarn.hidden)warned=true}
+win.fire('keyup',{code:'KeyS'});
+console.log('dive: pull-up warning seen',warned,'| summary',!els.summary.hidden,'|',els.sumKind.textContent,'|',els.sumT.textContent,'|',els.sumScore.textContent);
+console.log('grid:',els.sumGrid.innerHTML.replace(/<[^>]+>/g,' ').replace(/\s+/g,' '));
+console.log('list:',els.sumList.innerHTML.replace(/<\/dd>/g,'; ').replace(/<[^>]+>/g,' ').replace(/\s+/g,' '));
+step(60);els.sumAgain.fire('click');step(10);console.log('again: booklet',!els.guide.hidden,'bombs',els.jbn.textContent,'alt',els.jalt.textContent);
+els.gStart.fire('click');step(Math.ceil(121/0.016));console.log('time up: summary',!els.summary.hidden,'|',els.sumT.textContent);
+els.sumMenu.fire('click');step(10);console.log('mode',document.body.className,'best sortie',els.recJet.textContent);

@@ -15,14 +15,23 @@ const C3=h=>{const c=new THREE.Color(h);return[c.r,c.g,c.b]};
 const renderer=new THREE.WebGLRenderer({canvas:$('c'),antialias:true,powerPreference:'high-performance'});
 renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.75));
 renderer.shadowMap.enabled=true;
-const SKY=0xaebfcc;
+// A fine day: a blue sky dome that pales to a haze at the horizon. The fog is the haze colour, so the far edge of the
+// map and the countryside plane beyond it (nothing is modelled out there) fade into the horizon instead of ending.
+const SKY=0xd3e4ee,SKY_TOP=0x4f93d6;
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(SKY);
-scene.fog=new THREE.Fog(SKY,380,1500);
-const camera=new THREE.PerspectiveCamera(45,1,4,3200);
-const hemi=new THREE.HemisphereLight(0xe3ecf5,0x6f7a58,.62);scene.add(hemi);
+scene.fog=new THREE.Fog(SKY,700,2700);
+const camera=new THREE.PerspectiveCamera(45,1,4,5000);
+const skyU={top:{value:new THREE.Color(SKY_TOP)},hor:{value:new THREE.Color(SKY)}};
+const skyDome=new THREE.Mesh(new THREE.SphereGeometry(4200,32,16),new THREE.ShaderMaterial({uniforms:skyU,side:THREE.BackSide,depthWrite:false,fog:false,
+  vertexShader:'varying vec3 vP;void main(){vP=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+  fragmentShader:'uniform vec3 top,hor;varying vec3 vP;void main(){float h=clamp(normalize(vP).y,0.,1.);gl_FragColor=vec4(mix(hor,top,pow(h,.55)),1.);}'}));
+skyDome.renderOrder=-1;skyDome.onBeforeRender=(r,s,c)=>skyDome.position.copy(c.position);scene.add(skyDome);
+const country=new THREE.Mesh(new THREE.PlaneGeometry(30000,30000),new THREE.MeshLambertMaterial({color:0x86a467}));
+country.rotation.x=-Math.PI/2;country.position.y=-1.2;country.receiveShadow=true;scene.add(country);
+const hemi=new THREE.HemisphereLight(0xe8f1fa,0x6f7a58,.68);scene.add(hemi);
 const sunT=new THREE.Object3D();scene.add(sunT);
-const sun=new THREE.DirectionalLight(0xfff0d2,.8);
+const sun=new THREE.DirectionalLight(0xfff3dc,.92);
 const SM=Math.min(innerWidth<700?2048:4096,renderer.capabilities.maxTextureSize);
 sun.target=sunT;sun.castShadow=true;sun.shadow.mapSize.set(SM,SM);
 Object.assign(sun.shadow.camera,{left:-150,right:150,top:150,bottom:-150,near:100,far:1700});
@@ -54,7 +63,7 @@ bMat.onBeforeCompile=sh=>{
     .replace('#include <project_vertex>','#include <project_vertex>\nvWP=(modelMatrix*vec4(transformed,1.)).xyz;');
   sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uNight;\nvarying vec3 vWP;')
     .replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
-    if(uNight>0.){
+    if(uNight>0.&&vUv.x<4000.){   // ruins have their u pushed past 4000: no lights in them
       vec2 f=fract(vUv),cell=floor(vUv)+floor(vWP.xz/9.);
       float pane=step(.28,f.x)*step(f.x,.72)*step(.22,f.y)*step(f.y,.78);
       float h=fract(sin(dot(cell,vec2(12.9898,78.233)))*43758.5453);
@@ -477,21 +486,58 @@ function addBuilding(id,raw){
 
 // Upload only the touched vertex span; three resets updateRange.count to -1 after each upload, so spans painted in the same frame are merged.
 function markDirty(attr,v0,v1){
-  const r=attr.updateRange,o=v0*3,e=v1*3;
+  const r=attr.updateRange,k=attr.itemSize,o=v0*k,e=v1*k;
   if(r.count<0){r.offset=o;r.count=e-o}
   else{const a=Math.min(r.offset,o),z=Math.max(r.offset+r.count,e);r.offset=a;r.count=z-a}
   attr.needsUpdate=true;
 }
-function paintBuilding(b,s,f){
+// Damage only chars the walls (keep: leave the heights alone, for ruins).
+function paintBuilding(b,s,f,keep){
   const c=b.ch,pos=c.posA,col=c.colA,base=c.baseY,c0=c.col0;
-  const t=clamp(f,0,1)*.8;b.s=s;
+  const t=clamp(f,0,1)*.8;if(!keep)b.s=s;
   for(let i=b.v0;i<b.v1;i++){
-    pos[i*3+1]=base[i]*s;
+    if(!keep)pos[i*3+1]=base[i]*s;
     const o=i*3;
     col[o]=c0[o]+(CHAR[0]-c0[o])*t;col[o+1]=c0[o+1]+(CHAR[1]-c0[o+1])*t;col[o+2]=c0[o+2]+(CHAR[2]-c0[o+2])*t;
   }
   markDirty(c.geo.attributes.position,b.v0,b.v1);markDirty(c.geo.attributes.color,b.v0,b.v1);
 }
+
+/* A collapsed building is left as a ruin, not flattened: the walls stand to a broken, uneven line about a third of the
+   old height and the roof falls in below them. tg holds each vertex's ruined height; the same corner always gets the same
+   height, so neighbouring wall panels still meet. */
+const jag=(x,z)=>{const u=Math.sin(x*12.9898+z*78.233)*43758.5453;return u-Math.floor(u)};
+function ruinTargets(b){
+  const c=b.ch,base=c.baseY,pos=c.posA,n=b.v1-b.v0,tg=new Float32Array(n);
+  const top=Math.max(1.8,b.h*(.24+hash(b.id,21)*.2)*(b.h>25?.8:1));
+  for(let i=0;i<n;i++){
+    const v=b.v0+i,x=pos[v*3],z=pos[v*3+2],y=base[v];
+    if(i<b.vw)tg[i]=y<.01?0:Math.min(y,top*(.3+1.05*jag(x,z)));
+    else tg[i]=Math.max(.5,top*.3*(.5+jag(x,z)));
+  }
+  b.s=top/b.h;
+  return tg;
+}
+// e: 0 = standing, 1 = ruined. Window rows on the walls are cut down with the wall rather than squashed.
+function paintRuin(b,tg,e,f){
+  const c=b.ch,pos=c.posA,base=c.baseY,uva=c.geo.attributes.uv,uv=uva.array;
+  if(!c.uv0)c.uv0=uv.slice();
+  const u0=c.uv0;
+  for(let i=b.v0;i<b.v1;i++){
+    const y=base[i]+(tg[i-b.v0]-base[i])*e;pos[i*3+1]=y;
+    if(i-b.v0<b.vw&&base[i]>.01)uv[i*2+1]=u0[i*2+1]*y/base[i];
+    uv[i*2]=u0[i*2]+5000;
+  }
+  markDirty(uva,b.v0,b.v1);
+  // walls scorched but still stone; the fallen roof turns to dusty rubble
+  const col=c.colA,c0=c.col0,tw=.45*f,tr=.85*f;
+  for(let i=b.v0;i<b.v1;i++){
+    const o=i*3,R=i-b.v0<b.vw?CHAR:RUBBLE,t=R===CHAR?tw:tr;
+    col[o]=c0[o]+(R[0]-c0[o])*t;col[o+1]=c0[o+1]+(R[1]-c0[o+1])*t;col[o+2]=c0[o+2]+(R[2]-c0[o+2])*t;
+  }
+  markDirty(c.geo.attributes.position,b.v0,b.v1);markDirty(c.geo.attributes.color,b.v0,b.v1);
+}
+const RUBBLE=C3(0x857a6b);
 
 /* ---------- ground layers ---------- */
 const gChunks=new Chunks();
@@ -583,11 +629,11 @@ function treeVis(tx,tz,dist){
 /* ---------- day and night ---------- */
 // Chosen on the main menu only. Night: dark blue sky and fog, a dim moon (still casting shadows), lit windows and street lamps.
 let night=false,lamps=null;
-const DAY_L={sky:SKY,fog:[380,1500],hs:0xe3ecf5,hg:0x6f7a58,hi:.62,sc:0xfff0d2,si:.8},
-      NIGHT_L={sky:0x0b1426,fog:[260,1200],hs:0x5a6c99,hg:0x1c2030,hi:.42,sc:0xa9bcff,si:.3};
+const DAY_L={sky:SKY,top:SKY_TOP,fog:[700,2700],hs:0xe8f1fa,hg:0x6f7a58,hi:.68,sc:0xfff3dc,si:.92,gc:0x86a467},
+      NIGHT_L={sky:0x15223a,top:0x03070f,fog:[260,1300],hs:0x5a6c99,hg:0x1c2030,hi:.42,sc:0xa9bcff,si:.3,gc:0x2a3524};
 function setNight(on){
   night=on;const L=on?NIGHT_L:DAY_L;
-  scene.background.setHex(L.sky);scene.fog.color.setHex(L.sky);scene.fog.near=L.fog[0];scene.fog.far=L.fog[1];
+  scene.background.setHex(L.sky);skyU.top.value.setHex(L.top);skyU.hor.value.setHex(L.sky);country.material.color.setHex(L.gc);scene.fog.color.setHex(L.sky);scene.fog.near=L.fog[0];scene.fog.far=L.fog[1];
   hemi.color.setHex(L.hs);hemi.groundColor.setHex(L.hg);hemi.intensity=L.hi;
   sun.color.setHex(L.sc);sun.intensity=L.si;
   nightU.value=on?1:0;

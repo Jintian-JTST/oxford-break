@@ -15,19 +15,24 @@ const GUIDE={
     '<kbd>W</kbd>/<kbd>S</kbd> forward and back, <kbd>A</kbd>/<kbd>D</kbd> turn, <kbd>R</kbd>/<kbd>F</kbd> climb and descend, <kbd>Q</kbd>/<kbd>E</kbd> slide sideways, hold <kbd>Shift</kbd> to boost. On a phone, use the joystick.',
     'Aim with the mouse and hold the button to fire. <kbd>Space</kbd> or a right-click fires a missile once it has recharged; <kbd>C</kbd> switches to the cockpit view, looking ahead over the nose gun.',
     'The gowned figures on the ground with guns shoot back. Score enough and the gun upgrades to MK II, then MK III.',
-    'A run lasts 100 seconds. It ends at the end of the route, when time is up, or the moment you are shot down.']};
+    'A run lasts 100 seconds. It ends at the end of the route, when time is up, or the moment you are shot down.'],
+  jet:['The jet never stops. <kbd>W</kbd>/<kbd>S</kbd> climb and dive, <kbd>A</kbd>/<kbd>D</kbd> bank and turn, hold <kbd>Shift</kbd> for the afterburner. On a phone, use the joystick.',
+    '<kbd>Space</kbd> or a right-click drops a bomb. It keeps the jet\'s speed and lands on the white ring ahead; four on the pylons, and they reload.',
+    'Aim with the mouse and hold the button for the cannon. <kbd>C</kbd> switches to the cockpit.',
+    'Flying into a roof or the ground ends the sortie. Watch for PULL UP; at the edge of the map the jet turns itself back.',
+    'Collapses chain into combos, as in bombing. The sortie ends when the clock runs out.']};
 function openGuide(){
-  const heli=mode==='heli';
-  $('gT').textContent=heli?'Helicopter':'Bombing';
+  const heli=mode==='heli',jet=mode==='jet';
+  $('gT').textContent=heli?'Helicopter':jet?'Fighter jet':'Bombing';
   $('gList').innerHTML=GUIDE[mode].map(t=>'<li>'+t+'</li>').join('');
-  $('gOptL').textContent=heli?'Route':'Round length';
-  const opts=heli?ROUNDS.map((r,i)=>[i,r.name]):LIMITS.map(s=>[s,s/60+' min']),cur=heli?route:bombLimit,box=$('gOpt'),bs=[];
+  $('gOptL').textContent=heli?'Route':jet?'Sortie length':'Round length';
+  const opts=heli?ROUNDS.map((r,i)=>[i,r.name]):(jet?JET_LIMITS:LIMITS).map(s=>[s,s/60+' min']),cur=heli?route:jet?jetLimit:bombLimit,box=$('gOpt'),bs=[];
   box.innerHTML='';
   for(const [v,label] of opts){
     const b=document.createElement('button');b.type='button';b.textContent=label;b.className=v===cur?'on':'';bs.push(b);
     b.addEventListener('click',()=>{
-      if(heli)route=v;else bombLimit=v;
-      try{localStorage.setItem(heli?'oxford-break-route':'oxford-break-limit',String(v))}catch(e){}
+      if(heli)route=v;else if(jet)jetLimit=v;else bombLimit=v;
+      try{localStorage.setItem(heli?'oxford-break-route':jet?'oxford-break-jet-limit':'oxford-break-limit',String(v))}catch(e){}
       bs.forEach(c=>c.className=c===b?'on':'');
     });
     box.appendChild(b);
@@ -38,11 +43,12 @@ function startGame(){
   const heli=mode==='heli';
   $('guide').hidden=true;paused=false;ensureAudio();
   if(heli&&route!==H.round)startCampaign(route);
-  Object.assign(G,{on:true,started:heli,over:false,limit:heli?ROUND_T:bombLimit,t:0,endT:0,shownLeft:null,stats:newStats()});
+  const jet=mode==='jet';
+  Object.assign(G,{on:true,started:heli||jet,over:false,limit:heli?ROUND_T:jet?jetLimit:bombLimit,t:0,endT:0,shownLeft:null,stats:newStats()});
   $('btime').textContent='Clock starts with your first bomb';$('btime').classList.remove('low');
 }
 function playAgain(){
-  if(mode==='heli')startCampaign(route);else reset();
+  if(mode==='heli')startCampaign(route);else if(mode==='jet')prepJet();else reset();
   G.on=false;G.over=false;openGuide();
 }
 // a one-word name ("Hall", "Chapel") gets the nearest college after it
@@ -56,26 +62,30 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 function showSummary(title){
   if(!G.on)return;
   G.over=true;G.on=false;
-  const heli=mode==='heli',s=G.stats,key=heli?'oxford-break-heli-best':'oxford-break-bomb-best-'+G.limit;
+  const heli=mode==='heli',jet=mode==='jet',s=G.stats,key=heli?'oxford-break-heli-best':jet?'oxford-break-jet-best':'oxford-break-bomb-best-'+G.limit;
   let best=0;try{best=+localStorage.getItem(key)||0}catch(e){}
   const rec=score>best;if(rec){best=score;try{localStorage.setItem(key,String(best))}catch(e){}}
   if(heli)heliBest=Math.max(heliBest,best);
+  if(jet)jetBest=Math.max(jetBest,best);
   saveLife();
-  const kind=heli?'Helicopter · '+ROUNDS[H.round].name:'Bombing · '+G.limit/60+' min';
+  const kind=heli?'Helicopter · '+ROUNDS[H.round].name:(jet?'Fighter jet · ':'Bombing · ')+G.limit/60+' min';
   const time=clock(Math.round(G.t)),dons=heli?H.kills:donCount;
   $('sumKind').textContent=kind;$('sumT').textContent=title;$('sumScore').textContent=fmt(score);
   $('sumBest').textContent=rec?'New personal best':'Best '+fmt(best);$('sumBest').className=rec?'rec':'';
   const cell=(v,l)=>'<div><b>'+esc(v)+'</b><small>'+l+'</small></div>';
   // four headline numbers: what matters differs between the two modes
+  const w=s.weapons,n=k=>w[k]||0,names=[...new Set(s.named.map(([nm,x,z])=>placeName(nm,x,z)))];
   $('sumGrid').innerHTML=cell(time,'played')+cell(fmt(downCount),'collapsed')+(heli
     ?cell(dons,'dons down')+cell(Math.max(0,Math.ceil(H.hp)),'HP left')
+    :jet?cell(n('jbomb'),'bombs dropped')+cell('×'+s.combo,'best combo')
     :cell(dons,'dons launched')+cell('×'+s.combo,'best combo'));
-  const w=s.weapons,n=k=>w[k]||0,names=[...new Set(s.named.map(([nm,x,z])=>placeName(nm,x,z)))];
-  const used=heli?[n('rounds')+' rounds',n('missile')+' missile'+(n('missile')===1?'':'s')]:WEAPONS.map(W=>n(W.key)+' '+W.key+(n(W.key)===1?'':'s'));
+  const pl=(k,a)=>n(k)+' '+a+(n(k)===1?'':'s');
+  const used=heli?[n('rounds')+' rounds',pl('missile','missile')]:jet?[pl('jbomb','bomb'),n('rounds')+' rounds']:WEAPONS.map(W=>pl(W.key,W.key));
   const rows=[['Mode',kind],['Score',fmt(score)],['Personal best',fmt(best)],['Time played',time],
     ['Buildings collapsed',fmt(downCount)],['Landmarks destroyed',names.length],['Weapons used',used.join(' · ')],
     [heli?'Dons shot down':'Dons launched',dons],['Best combo','×'+s.combo]];
   if(heli)rows.push(['Distance flown',fmt(Math.round(s.dist))+' m'],['HP left',Math.max(0,Math.ceil(H.hp))]);
+  if(jet)rows.push(['Distance flown',fmt(Math.round(s.dist))+' m'],['Top speed',Math.round(s.vmax*3.6)+' km/h']);
   $('sumList').innerHTML=rows.map(([a,b])=>'<dt>'+esc(a)+'</dt><dd>'+esc(b)+'</dd>').join('');
   // named buildings in the order they fell, under their label names where labels.js has one
   $('sumBld').innerHTML=(names.map(nm=>'<li>'+esc(nm)+'</li>').join('')
@@ -92,7 +102,7 @@ $('sumDet').addEventListener('click',()=>{const m=$('sumMore');m.hidden=!m.hidde
 let infoPaused=false;
 function openInfo(){infoPaused=!paused;paused=true;$('info').hidden=false}
 function closeInfo(){$('info').hidden=true;if(infoPaused)paused=false}
-for(const id of ['infoBtn','binfo','hinfo'])$(id).addEventListener('click',openInfo);
+for(const id of ['infoBtn','binfo','hinfo','jinfo'])$(id).addEventListener('click',openInfo);
 $('infoClose').addEventListener('click',closeInfo);
 
 /* time of day: switched on the main menu only, remembered */
@@ -107,6 +117,7 @@ $('todNight').addEventListener('click',()=>pickNight(true));
 // menu: the map turns slowly behind the title; bomb: free destruction; heli: the helicopter campaign.
 function setMode(m){
   if(mode==='heli'&&m!=='heli')stopHeli();
+  if(mode==='jet'&&m!=='jet')stopJet();
   mode=m;G.on=false;G.over=false;paused=false;
   for(const id of ['guide','summary','info'])$(id).hidden=true;
   document.body.className='mode-'+m;edgeCaps();
@@ -115,12 +126,14 @@ function setMode(m){
   if(m==='menu'){
     if(rc){cam.tx=rc.x;cam.tz=rc.z}
     cam.dist=280;cam.pitch=.62;
-    $('recLife').textContent=fmt(life);$('recFlight').textContent=heliBest?fmt(heliBest):'—';
+    $('recLife').textContent=fmt(life);$('recFlight').textContent=heliBest?fmt(heliBest):'—';$('recJet').textContent=jetBest?fmt(jetBest):'—';
   }else if(m==='bomb'){
     reset();
     if(rc){cam.tx=rc.x;cam.tz=rc.z}
     cam.dist=140;cam.pitch=.92;cam.yaw=.55;
     openGuide();
+  }else if(m==='jet'){
+    ensureAudio();prepJet();openGuide();
   }else{
     ensureAudio();startCampaign(route);openGuide();
   }
@@ -128,6 +141,8 @@ function setMode(m){
 }
 $('playBomb').addEventListener('click',()=>{ensureAudio();setMode('bomb')});
 $('playHeli').addEventListener('click',()=>setMode('heli'));
+$('playJet').addEventListener('click',()=>setMode('jet'));
+$('jmenu').addEventListener('click',()=>setMode('menu'));
 $('tomenu').addEventListener('click',()=>setMode('menu'));
 $('hmenu').addEventListener('click',()=>setMode('menu'));
 $('hmute').addEventListener('click',toggleMute);
@@ -144,11 +159,12 @@ function frame(now){
   updateAudio(dt);
   if(mode==='bomb')updateBomb(d);
   else if(mode==='heli')updateHeli(d);
+  else if(mode==='jet')updateJet(d);
   else{cam.yaw+=dt*.06;placeCam()}
   if(fr%20===1)treeVis(cam.tx,cam.tz,cam.dist);
-  if(mode!=='heli'){mmDot.style.left=((cam.tx+MW/2)/MW*100)+'%';mmDot.style.top=((cam.tz+MH/2)/MH*100)+'%'}
+  if(mode==='bomb'||mode==='menu'){mmDot.style.left=((cam.tx+MW/2)/MW*100)+'%';mmDot.style.top=((cam.tz+MH/2)/MH*100)+'%'}
   renderer.render(scene,camera);
-  renderCockpit();
+  renderCockpit();renderJetCockpit();
   updateLabels();
 }
 
@@ -163,7 +179,7 @@ setTimeout(()=>{
     pickNight(nt);
     hud();
     const q=new URLSearchParams(location.search).get('mode');
-    setMode(q==='bomb'||q==='heli'?q:'menu');
+    setMode(q==='bomb'||q==='heli'||q==='jet'?q:'menu');
     treeVis(cam.tx,cam.tz,cam.dist);
     requestAnimationFrame(frame);
     $('loading').hidden=true;

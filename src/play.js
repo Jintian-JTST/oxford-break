@@ -57,7 +57,7 @@ let combo=0,lastDown=-9,mult=1;
 // paused: the booklet or Info is open, and the game modes update with dt = 0.
 const G={on:false,started:false,over:false,limit:120,t:0,endT:0,shownLeft:null,stats:null};
 let paused=false;
-function newStats(){return {named:[],other:0,weapons:{},combo:1,dist:0}}
+function newStats(){return {named:[],other:0,weapons:{},combo:1,dist:0,vmax:0}}
 // fxQ scales debris and dust per collapse, so one nuke levelling 200 buildings stays affordable.
 let fxQ=1;
 // 'menu' | 'bomb' | 'heli' (see main.js)
@@ -195,6 +195,7 @@ const STYLE={
   menu:{bpm:84,kick:[],snare:[],hat:0,bass:[0],lead:false,arp:4},
   bomb:{bpm:118,kick:[0,7,10],snare:[4,12],hat:2,bass:[0,3,6,10,14],lead:true,arp:2},
   heli:{bpm:140,kick:[0,4,8,12],snare:[4,12],hat:1,bass:[0,2,4,6,8,10,12,14],lead:true,arp:2},
+  jet:{bpm:150,kick:[0,4,8,12],snare:[4,12],hat:1,bass:[0,2,4,6,8,10,12,14],lead:true,arp:2},
   night:{bpm:66,kick:[],snare:[],hat:0,bass:[0],lead:false,arp:2}};          // the menu at night: a slow nocturne
 // [step, chord tone (0 root, 1 third, 2 fifth, 3 octave, 4 third up), length in steps], one motif for even bars and one for odd
 const LEAD=[[[0,3,3],[3,2,1],[4,3,2],[6,4,2],[8,3,3],[11,2,1],[12,1,2],[14,2,2]],
@@ -273,22 +274,24 @@ function updateAudio(dt){
   if(!ac)return;
   if(!bed){if(muted)return;startBeds()}
   const now=ac.currentTime,flying=mode==='heli'&&(H.phase==='fly'||H.phase==='crash'),door=H.view==='gun';
-  bed.g.gain.setTargetAtTime(muted?0:(flying?.02:.05)*(1+.4*Math.sin(now*.23)),now,.5);
+  // the jet: no rotor chop; a deep roar (the wind bed, louder) under a turbine whine that rises with speed
+  const jet=mode==='jet'&&J.phase==='fly',jk=jet?.5+(J.ab?1:0):0;
+  bed.g.gain.setTargetAtTime(muted?0:jet?.1+.06*jk:(flying?.02:.05)*(1+.4*Math.sin(now*.23)),now,.5);
   rotorA.rg.gain.setTargetAtTime(muted||!flying?0:door?.5:.28,now,.15);
-  rotorA.wg.gain.setTargetAtTime(muted||!flying?0:door?.016:.01,now,.15);
-  const wf=H.boosting?2100:1650;
+  rotorA.wg.gain.setTargetAtTime(muted||!(flying||jet)?0:jet?.008+.01*jk:door?.016:.01,now,.15);
+  const wf=jet?600+J.v*9:H.boosting?2100:1650;
   rotorA.lfo.frequency.setTargetAtTime(H.boosting?24:19,now,.4);rotorA.w.frequency.setTargetAtTime(wf,now,.5);rotorA.wf.frequency.setTargetAtTime(wf,now,.5);
   musG.gain.setTargetAtTime(muted||!musicOn?0:1,now,.3);
   if(musicOn&&!muted){if(musT<now)musT=now+.05;schedMusic()}
-  if(night&&!muted&&!flying&&rr()<dt*.8)chirp(now+rr()*.1);
-  if(!muted&&!flying&&(bellT-=dt)<=0){bellT=25+rr()*30;const n=2+Math.floor(rr()*3);for(let i=0;i<n;i++)bell(now+i*1.7)}
+  if(night&&!muted&&!flying&&!jet&&rr()<dt*.8)chirp(now+rr()*.1);
+  if(!muted&&!flying&&!jet&&(bellT-=dt)<=0){bellT=25+rr()*30;const n=2+Math.floor(rr()*3);for(let i=0;i<n;i++)bell(now+i*1.7)}
 }
 function toggleMusic(){
-  musicOn=!musicOn;$('music').textContent=$('hmusic').textContent=musicOn?'Music on':'Music off';
+  musicOn=!musicOn;$('music').textContent=$('hmusic').textContent=$('jmusic').textContent=musicOn?'Music on':'Music off';
   try{localStorage.setItem('oxford-break-music',musicOn?'on':'off')}catch(e){}
   ensureAudio();
 }
-$('music').textContent=$('hmusic').textContent=musicOn?'Music on':'Music off';
+$('music').textContent=$('hmusic').textContent=$('jmusic').textContent=musicOn?'Music on':'Music off';
 
 /* ---------- hud ---------- */
 const v3=new THREE.Vector3();
@@ -409,7 +412,7 @@ function damageArea(x,z,R,dmg,fall,burn,donR){
   killTrees(x,z,R*.85);
   return down;
 }
-function setDamage(b){const f=1-clamp(b.hp/b.maxHp,0,1);paintBuilding(b,1-.35*f,f)}
+function setDamage(b){const f=1-clamp(b.hp/b.maxHp,0,1);paintBuilding(b,1,f)}
 /* fire: a burning building loses hp for a few seconds and may come down on its own */
 function ignite(b,t){
   if(b.burn>0){b.burn=Math.max(b.burn,t);return}
@@ -437,7 +440,8 @@ function updateFire(dt){
 function collapse(b,chain){
   b.dead=true;b.burn=0;downCount++;rumble(b.h);
   if(G.on&&!G.over){const s=G.stats;if(!b.name)s.other++;else s.named.push([b.name,b.x,b.z])}
-  sinking.push({b,s0:b.s,s1:Math.min(1,1.3/b.h),t:0,dur:.6+Math.min(.8,b.h/40)});
+  const h0=b.h,tg=ruinTargets(b),top=h0*b.s;
+  sinking.push({b,tg,t:0,dur:.35});
   const pts=b.pts*mult;addScore(pts);
   if(b.name||fxQ>=1)pop((b.name?b.name+' ':'')+'+'+fmt(pts)+(mult>1?' ×'+mult:''),b.x,Math.min(b.h*.6,20),b.z,b.name?'big':'');
   if(!chain){
@@ -450,18 +454,33 @@ function collapse(b,chain){
     }
   }
   const o=mmo.getContext('2d');o.fillStyle='#ff6a3d';o.fillRect(mx(b.x)-1,mz(b.z)-1,2.4,2.4);
-  const stoneM=debrisMat(b.wc);
-  const n=Math.round(Math.min(36,Math.round(b.area*b.h/90)+8)*fxQ);
-  for(let i=0;i<n;i++){
-    let px=b.x,pz=b.z;
-    for(let t=0;t<5;t++){const qx=b.minx+rr()*(b.maxx-b.minx),qz=b.minz+rr()*(b.maxz-b.minz);if(inPoly(b.r,qx,qz)){px=qx;pz=qz;break}}
-    const s=.6+rr()*1.5,m=new THREE.Mesh(boxGeo,rr()<.3?slateMat:stoneM);
-    m.scale.setScalar(s);m.position.set(px,rr()*b.h*.8+s,pz);m.castShadow=true;
+  burst(b,top,h0);
+}
+// The collapse itself: the part of the building that is gone flies out as blocks and grit, and a cloud of dust
+// in the wall colour hides the moment it turns into a ruin.
+const dustCol=new THREE.Color();
+function burst(b,top,h0){
+  const stoneM=debrisMat(b.wc),span=Math.max(b.maxx-b.minx,b.maxz-b.minz);
+  const pt=()=>{for(let t=0;t<6;t++){const qx=b.minx+rr()*(b.maxx-b.minx),qz=b.minz+rr()*(b.maxz-b.minz);if(inPoly(b.r,qx,qz))return [qx,qz]}return [b.x,b.z]};
+  const n=Math.round(Math.min(44,Math.round(b.area*h0/80)+10)*fxQ),g=Math.round(Math.min(40,8+b.area/25)*fxQ);
+  for(let i=0;i<n+g;i++){
+    const [px,pz]=pt(),grit=i>=n,s=grit?.25+rr()*.35:.6+rr()*1.6;
+    const m=new THREE.Mesh(boxGeo,rr()<.3?slateMat:stoneM);
+    m.scale.setScalar(s);m.position.set(px,top+rr()*Math.max(1,h0-top),pz);m.castShadow=!grit;
     m.rotation.set(rr()*3,rr()*3,rr()*3);scene.add(m);
-    debris.push({m,s,age:0,rest:false,vx:(px-b.x)*.5+(rr()-.5)*8,vy:6+rr()*14,vz:(pz-b.z)*.5+(rr()-.5)*8,rx:(rr()-.5)*8,rz:(rr()-.5)*8});
+    let dx=px-b.x,dz=pz-b.z;const l=Math.hypot(dx,dz)||1,sp=(grit?10:5)+rr()*(grit?18:12);dx/=l;dz/=l;
+    debris.push({m,s,age:grit?5:0,rest:false,vx:dx*sp+(rr()-.5)*6,vy:(grit?8:5)+rr()*(grit?18:12),vz:dz*sp+(rr()-.5)*6,rx:(rr()-.5)*10,rz:(rr()-.5)*10});
   }
-  while(debris.length>420){const p=debris.shift();scene.remove(p.m)}
-  dust(b.x,b.z,Math.round(Math.min(7,3+(b.area/200|0))*fxQ),Math.max(b.maxx-b.minx,b.maxz-b.minz));
+  while(debris.length>520){const p=debris.shift();scene.remove(p.m)}
+  dustCol.setRGB(b.wc[0],b.wc[1],b.wc[2]).lerp(new THREE.Color(0xb3aa9c),.55);
+  const k=Math.round(Math.min(12,4+b.area/150)*fxQ)||1;
+  for(let i=0;i<k;i++){
+    const [px,pz]=pt(),y0=top*.5+rr()*Math.max(1,h0-top*.5),r0=1.5+Math.min(4,span*.08)+rr()*2,grow=4+rr()*4+span*.06;
+    const m=new THREE.Mesh(sphereGeo,new THREE.MeshBasicMaterial({color:dustCol,transparent:true,opacity:.8,depthWrite:false}));
+    const dx=(px-b.x)*.6,dz=(pz-b.z)*.6;m.position.set(px,y0,pz);
+    addFx(m,1.6+rr()*1.2,f=>{const e=1-(1-f)*(1-f);m.scale.setScalar(r0+e*grow);m.position.set(px+dx*e,y0+f*5,pz+dz*e);m.material.opacity=.8*(1-f)*(1-f*.4)});
+  }
+  dust(b.x,b.z,Math.round(Math.min(7,3+(b.area/200|0))*fxQ),span);
 }
 
 /* ---------- dons ---------- */
@@ -672,33 +691,41 @@ addEventListener('keydown',e=>{
   }else if(mode==='heli'){
     if(e.code==='Space'){e.preventDefault();ensureAudio();fireMissile();return}
     if(e.code==='KeyC'){toggleView();return}
+  }else if(mode==='jet'){
+    if(e.code==='Space'){e.preventDefault();ensureAudio();jetBomb();return}
+    if(e.code==='KeyC'){toggleJetView();return}
   }
   keys.add(e.code);keyCap(e.code,true);
 });
 addEventListener('keyup',e=>{keys.delete(e.code);keyCap(e.code,false)});
 // on-screen keycaps light up with the keyboard; holding one with the mouse does the same as the key
-// The two caps on the screen edges are the turning keys: Q/E in bombing, A/D in the helicopter (whose pad then shows only W/S).
+// The two caps on the screen edges are the turning keys: Q/E in bombing, A/D in the helicopter and the jet (whose pad then shows only W/S).
 const KCAPS=['KeyW','KeyA','KeyS','KeyD','KeyR','KeyF'];
-const edgeKey=side=>mode==='heli'?(side?'KeyD':'KeyA'):(side?'KeyE':'KeyQ');
+const edgeKey=side=>mode==='heli'||mode==='jet'?(side?'KeyD':'KeyA'):(side?'KeyE':'KeyQ');
+// In the jet W/S are climb and dive, so they take the top and bottom caps (where R/F sit elsewhere) and the pad is hidden.
+const vKey=up=>mode==='jet'?(up?'KeyW':'KeyS'):(up?'KeyR':'KeyF');
 function keyCap(c,on){
   const cl=id=>$(id).classList[on?'add':'remove']('on');
   if(c===edgeKey(0))cl('k-edgeL');else if(c===edgeKey(1))cl('k-edgeR');
-  if(KCAPS.indexOf(c)>=0)cl('k-'+c);
+  if(c===vKey(1))cl('k-KeyR');else if(c===vKey(0))cl('k-KeyF');
+  else if(KCAPS.indexOf(c)>=0&&mode!=='jet')cl('k-'+c);
 }
 function holdCap(e,code){
   let c=null;
   e.addEventListener('pointerdown',ev=>{ev.preventDefault();c=code();keys.add(c);keyCap(c,true);e.setPointerCapture(ev.pointerId)});
   for(const t of ['pointerup','pointercancel'])e.addEventListener(t,()=>{if(c){keys.delete(c);keyCap(c,false);c=null}});
 }
-for(const c of KCAPS)holdCap($('k-'+c),()=>c);
+for(const c of ['KeyW','KeyA','KeyS','KeyD'])holdCap($('k-'+c),()=>c);
+holdCap($('k-KeyR'),()=>vKey(1));holdCap($('k-KeyF'),()=>vKey(0));
 holdCap($('k-edgeL'),()=>edgeKey(0));holdCap($('k-edgeR'),()=>edgeKey(1));
-function edgeCaps(){$('k-edgeL').textContent=edgeKey(0).slice(3);$('k-edgeR').textContent=edgeKey(1).slice(3)}
+function edgeCaps(){$('k-edgeL').textContent=edgeKey(0).slice(3);$('k-edgeR').textContent=edgeKey(1).slice(3);$('k-KeyR').textContent=vKey(1).slice(3);$('k-KeyF').textContent=vKey(0).slice(3)}
 // a hidden tab stops the frame loop, and with it the music scheduler, so all the sound pauses with it
 document.addEventListener('visibilitychange',()=>{if(!ac)return;if(document.hidden)ac.suspend();else if(!muted)ac.resume()});
 $('k-KeyL').addEventListener('click',toggleLabels);
-function toggleMute(){muted=!muted;$('mute').textContent=$('hmute').textContent=muted?'Sound off':'Sound on';if(!muted)ensureAudio()}
+function toggleMute(){muted=!muted;$('mute').textContent=$('hmute').textContent=$('jmute').textContent=muted?'Sound off':'Sound on';if(!muted)ensureAudio()}
 $('mute').addEventListener('click',toggleMute);
-$('music').addEventListener('click',toggleMusic);$('hmusic').addEventListener('click',toggleMusic);
+$('music').addEventListener('click',toggleMusic);$('hmusic').addEventListener('click',toggleMusic);$('jmusic').addEventListener('click',toggleMusic);
+$('jmute').addEventListener('click',toggleMute);
 $('lblbtn').addEventListener('click',toggleLabels);$('lblbtn').textContent=labelsOn?'Labels on':'Labels off';
 function reset(){
   bombs.splice(0).forEach(b=>{scene.remove(b.g);scene.remove(b.mk);b.mk.material.dispose()});
@@ -709,8 +736,8 @@ function reset(){
   dons.splice(0).forEach(d=>scene.remove(d.g));
   for(const c of bList){
     for(let i=0;i<c.n;i++)c.posA[i*3+1]=c.baseY[i];
-    c.colA.set(c.col0);
-    for(const a of [c.geo.attributes.position,c.geo.attributes.color]){a.updateRange.count=-1;a.needsUpdate=true}
+    c.colA.set(c.col0);if(c.uv0)c.geo.attributes.uv.array.set(c.uv0);
+    for(const a of [c.geo.attributes.position,c.geo.attributes.color,c.geo.attributes.uv]){a.updateRange.count=-1;a.needsUpdate=true}
   }
   for(const b of buildings){b.dead=false;b.seen=false;b.hp=b.maxHp;b.s=1}
   treeChunks.forEach(tc=>{
@@ -758,10 +785,10 @@ function updateWorld(dt){
     const f=fx[i];f.t+=dt;const k=f.t/f.dur;
     if(k>=1){dropFx(f);fx.splice(i,1)}else f.upd(k);
   }
-  // Collapsing buildings sink with an ease-in, so they visibly give way before hitting the ground.
+  // A collapsing building turns into its ruin quickly, inside the dust cloud of the burst.
   for(let i=sinking.length-1;i>=0;i--){
-    const s=sinking[i];s.t+=dt/s.dur;const k=Math.min(1,s.t),e=k*k;
-    paintBuilding(s.b,s.s0+(s.s1-s.s0)*e,.6+.4*k);
+    const s=sinking[i];s.t+=dt/s.dur;const k=Math.min(1,s.t),e=1-(1-k)*(1-k);
+    paintRuin(s.b,s.tg,e,.7+.3*k);
     if(k>=1)sinking.splice(i,1);
   }
   for(let i=debris.length-1;i>=0;i--){

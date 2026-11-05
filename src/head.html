@@ -56,8 +56,8 @@ button.primary{background:var(--stone);color:var(--ink);border-color:var(--stone
 #qeR{right:max(16px,env(safe-area-inset-right,0px))}
 .klbl{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:14px;z-index:2;display:flex;align-items:center;gap:7px}
 .klbl em{font:600 10px/1 var(--f-mono);font-style:normal;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap;text-shadow:0 1px 3px rgba(8,24,48,.95)}
-body.mode-menu .edge{display:none}
-body.mode-heli #k-KeyA,body.mode-heli #k-KeyD{visibility:hidden}
+body.mode-menu .edge,body.mode-jet .kpad{display:none}
+body.mode-heli #k-KeyA,body.mode-heli #k-KeyD,body.mode-jet #k-KeyA,body.mode-jet #k-KeyD{visibility:hidden}
 @media (pointer:coarse),(max-width:560px){.keyb{display:none}}
 .where{font:500 11px/1 var(--f-mono);letter-spacing:.08em;color:var(--stone);background:var(--panel);padding:7px 10px;border-radius:6px;align-self:flex-start;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #mm{position:relative;pointer-events:auto;flex:none;width:clamp(120px,24vw,200px);aspect-ratio:4788/3538;border-radius:6px;overflow:hidden;border:1px solid rgba(255,255,255,.22);background:#1c2f45;touch-action:none;cursor:pointer}
@@ -81,7 +81,7 @@ body.mode-heli #k-KeyA,body.mode-heli #k-KeyD{visibility:hidden}
 .pop.don{color:var(--chalk);font-size:17px}
 @keyframes rise{from{opacity:1;margin-top:0}to{opacity:0;margin-top:-70px}}
 /* modes: body.mode-menu | mode-bomb | mode-heli */
-body.mode-menu #labels,body:not(.mode-heli) .heli-only,body:not(.mode-bomb) .bomb-only{display:none}
+body.mode-menu #labels,body:not(.mode-heli) .heli-only,body:not(.mode-bomb) .bomb-only,body:not(.mode-jet) .jet-only,body:not(.mode-heli):not(.mode-jet) .fly{display:none}
 #menu{position:fixed;inset:0;z-index:4;display:none;align-items:center;justify-content:center;padding:24px 16px;overflow:auto;
   background:linear-gradient(180deg,rgba(10,28,54,.45),rgba(10,28,54,.86))}
 body.mode-menu #menu{display:flex}
@@ -107,7 +107,7 @@ body.mode-menu #menu{display:flex}
 .hpanel small b{color:var(--chalk);font-weight:500}
 #hround,.hpanel .mt{color:var(--stone)}
 .hpanel small i{font-style:normal;color:var(--alarm);letter-spacing:.04em}
-#hscore,#score{display:block;margin:4px 0 6px;font:400 clamp(28px,6vw,40px)/1 var(--f-display);font-variant-numeric:tabular-nums}
+#hscore,#score,#jscore{display:block;margin:4px 0 6px;font:400 clamp(28px,6vw,40px)/1 var(--f-display);font-variant-numeric:tabular-nums}
 .hp{display:flex;align-items:center;gap:8px;margin-top:10px;font:500 11px/1 var(--f-mono)}
 .hp b{min-width:26px;text-align:right}
 .hpbar{flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,.12);overflow:hidden}
@@ -125,10 +125,18 @@ body.mode-menu #menu{display:flex}
 .bst.on{border-color:var(--stone);background:rgba(120,90,30,.85)}
 #xhair{position:fixed;left:0;top:0;width:34px;height:34px;margin:-17px 0 0 -17px;border:2px solid rgba(255,255,255,.85);border-radius:50%;z-index:2;pointer-events:none;box-shadow:0 0 0 1px rgba(8,24,48,.5)}
 #xhair::after{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;border-radius:50%;background:var(--alarm)}
-body.mode-heli #c{cursor:none}
+body.mode-heli #c,body.mode-jet #c{cursor:none}
 #joy{position:fixed;left:24px;bottom:28px;width:124px;height:124px;border-radius:50%;background:rgba(8,24,48,.45);border:1px solid rgba(255,255,255,.25);touch-action:none;pointer-events:auto;z-index:3;display:none}
 #joyk{position:absolute;left:50%;top:50%;width:50px;height:50px;margin:-25px;border-radius:50%;background:rgba(230,189,98,.85)}
-@media (pointer:coarse){body.mode-heli #joy{display:block}#xhair{display:none}}
+@media (pointer:coarse){body.mode-heli #joy,body.mode-jet #joy{display:block}#xhair{display:none}}
+/* jet: cockpit head-up display (speed, waterline, altitude) and the pull-up warning */
+#jhud{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2;display:none;align-items:center;gap:70px;pointer-events:none;
+  font:600 14px/1 var(--f-mono);color:#7dffa8;text-shadow:0 0 4px rgba(0,40,10,.9)}
+body.mode-jet.jcock #jhud{display:flex}
+#jhud i{display:block;width:54px;height:2px;background:#7dffa8;box-shadow:0 0 4px rgba(0,40,10,.9)}
+#jhud span{min-width:48px}
+#jhs{text-align:right}
+.hbot>#jwarn{color:var(--ink);background:var(--alarm);animation:pulse .6s ease-in-out infinite}
 #banner{position:fixed;left:50%;top:26%;transform:translate(-50%,-50%);z-index:3;text-align:center;pointer-events:none;text-shadow:0 2px 0 rgba(0,0,0,.5)}
 #banner b{display:block;font:400 clamp(28px,6vw,44px)/1 var(--f-display);color:var(--stone)}
 #banner span{display:block;margin-top:8px;font:500 12px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase}
@@ -190,9 +198,10 @@ a.btn:hover{border-color:var(--stone)}
     <div class="modes">
       <button id="playBomb" class="mode" type="button"><em>Against the clock</em><b>Bombing</b><span>Bomb, meteor and nuke. Level as much of the city as you can before time runs out.</span></button>
       <button id="playHeli" class="mode" type="button"><em>One run · two routes</em><b>Helicopter</b><span>The autopilot flies the route, or take the controls. Aim, fire, and mind the dons: they shoot back.</span></button>
+      <button id="playJet" class="mode" type="button"><em>Sortie · bombs and cannon</em><b>Fighter jet</b><span>Fast and low over the city. Drop bombs on the ring ahead, strafe with the cannon, and stay clear of the spires.</span></button>
     </div>
     <div class="opt tod"><small>Time of day</small><div class="seg"><button id="todDay" type="button">Day</button><button id="todNight" type="button">Night</button></div></div>
-    <div class="recs"><div><small>All-time points</small><b id="recLife">0</b></div><div><small>Best flight</small><b id="recFlight">—</b></div></div>
+    <div class="recs"><div><small>All-time points</small><b id="recLife">0</b></div><div><small>Best flight</small><b id="recFlight">—</b></div><div><small>Best sortie</small><b id="recJet">—</b></div></div>
     <div class="mfoot"><button id="infoBtn" type="button">Info</button> · <a href="https://github.com/Jintian-JTST/oxford-break" target="_blank" rel="noopener">GitHub ↗</a></div>
   </div>
 </div>
@@ -207,8 +216,19 @@ a.btn:hover{border-color:var(--stone)}
   <div class="btns"><button id="hmute" type="button">Sound on</button><button id="hmusic" type="button">Music on</button><button id="hinfo" type="button" title="Info">i</button><button id="hmenu" type="button">Menu</button></div>
 </div>
 <div class="hbot heli-only"><span id="hmk">MK I</span><span id="hauto">Autopilot</span><button id="view" type="button"><span id="viewT">Gunner view</span><b>C</b></button><button id="boost" class="msl bst" type="button">Boost<b>Shift</b><i></i></button><button id="missile" class="msl" type="button">Missile<b>Space</b><i></i></button></div>
-<div id="xhair" class="heli-only"></div>
+<div id="xhair" class="fly"></div>
 <div id="joy"><i id="joyk"></i></div>
+<div class="topbar jet-only">
+  <div class="hpanel">
+    <small class="mt">Fighter jet</small>
+    <span id="jscore" class="big">0</span>
+    <small><b id="jdown">0</b> collapsed · <b id="jtime">2:00</b> left <i id="jmult"></i></small>
+    <small><b id="jspd">0</b> km/h · <b id="jalt">0</b> m up</small>
+  </div>
+  <div class="btns"><button id="jmute" type="button">Sound on</button><button id="jmusic" type="button">Music on</button><button id="jinfo" type="button" title="Info">i</button><button id="jmenu" type="button">Menu</button></div>
+</div>
+<div class="hbot jet-only"><span id="jwarn" hidden>Pull up</span><button id="jview" type="button"><span id="jviewT">Cockpit view</span><b>C</b></button><button id="jab" class="msl bst" type="button">Afterburner<b>Shift</b><i></i></button><button id="jbomb" class="msl" type="button">Bomb <span id="jbn">●●●●</span><b>Space</b><i></i></button></div>
+<div id="jhud"><span id="jhs">0</span><i></i><span id="jha">0</span></div>
 <div id="banner" hidden><b id="bannerT"></b><span id="bannerS"></span></div>
 <div id="guide" class="modal" hidden><div class="sheet wide">
   <span class="mt">How to play</span><h2 id="gT">Bombing</h2>
@@ -226,7 +246,7 @@ a.btn:hover{border-color:var(--stone)}
 </div></div>
 <div id="info" class="modal" hidden><div class="sheet">
   <span class="mt">About</span><h2>Oxford Break</h2>
-  <p>Oxford's real streets and buildings, taken from OpenStreetMap and rebuilt as a stylised 3D city you can knock down. Two modes: bombing against the clock, and a helicopter run with a nose gun.</p>
+  <p>Oxford's real streets and buildings, taken from OpenStreetMap and rebuilt as a stylised 3D city you can knock down. Three modes: bombing against the clock, a helicopter run with a nose gun, and a fighter-jet sortie with bombs and a cannon.</p>
   <p>Modelled on <a href="https://peerlyhk.com/campus-break" target="_blank" rel="noopener">Campus Break</a> by Peerly, the HKU original. This Oxford version is an independent remake with its own code and art.</p>
   <p>Map data © OpenStreetMap contributors (ODbL). 3D with three.js. Made by Jintian.</p>
   <div class="cardbtns"><a class="btn" href="https://github.com/Jintian-JTST/oxford-break" target="_blank" rel="noopener">Source on GitHub ↗</a><button id="infoClose" class="primary" type="button">Close</button></div>
