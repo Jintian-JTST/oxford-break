@@ -13,7 +13,7 @@ const GUIDE={
     'The clock starts with your first bomb. When it runs out you get a summary of the damage.'],
   heli:['The autopilot flies the route. Any flight key takes over; let go for three seconds and it flies back to the route.',
     '<kbd>W</kbd>/<kbd>S</kbd> forward and back, <kbd>A</kbd>/<kbd>D</kbd> turn, <kbd>R</kbd>/<kbd>F</kbd> climb and descend, <kbd>Q</kbd>/<kbd>E</kbd> slide sideways, hold <kbd>Shift</kbd> to boost. On a phone, use the joystick.',
-    'Aim with the mouse and hold the button to fire. <kbd>Space</kbd> or a right-click fires a missile once it has recharged; <kbd>C</kbd> switches to the door gunner\'s view.',
+    'Aim with the mouse and hold the button to fire. <kbd>Space</kbd> or a right-click fires a missile once it has recharged; <kbd>C</kbd> switches to the cockpit view, looking ahead over the nose gun.',
     'The gowned figures on the ground with guns shoot back. Score enough and the gun upgrades to MK II, then MK III.',
     'A run lasts 100 seconds. It ends at the end of the route, when time is up, or the moment you are shot down.']};
 function openGuide(){

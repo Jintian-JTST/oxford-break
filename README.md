@@ -1,6 +1,6 @@
 # Oxford Break（炸牛津）
 
-A browser game set in a stylised 3D Oxford built from OpenStreetMap data. Knock down the city from above, or fly a helicopter along a route with a door gunner.
+A browser game set in a stylised 3D Oxford built from OpenStreetMap data. Knock down the city from above, or fly a helicopter along a route and shoot from its nose gun.
 
 **Play:** https://jintian-jtst.github.io/oxford-break/
 
@@ -22,7 +22,7 @@ Each mode opens with a short how-to-play booklet. Each game ends on a summary sh
 | A / D | pan left / right | turn |
 | Q / E | rotate | slide sideways |
 | R / F | tilt | climb / descend |
-| Other | 1 2 3 pick weapon · Space drops at centre · wheel or pinch zooms | Shift boost · Space or right-click missile · C door gunner's view |
+| Other | 1 2 3 pick weapon · Space drops at centre · wheel or pinch zooms | Shift boost · Space or right-click missile · C cockpit view |
 
 Both modes: L place names · M sound · N music. On a phone, drag and pinch in Bombing, and use the joystick in Helicopter.
 

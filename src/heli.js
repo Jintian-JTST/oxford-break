@@ -2,7 +2,7 @@
 /* ---------- helicopter mode ---------- */
 // A two-round campaign. The helicopter flies a route on autopilot; any flying input takes over (MANUAL), and
 // after HANDBACK seconds without input it steers back onto the route. You aim with the pointer, hold to fire
-// the door gun and launch missiles; armed dons along the route shoot back.
+// the nose gun and launch missiles; armed dons along the route shoot back.
 const ROUNDS=[
   {name:'City centre',via:['Westgate Centre','Christ Church Cathedral','Examination Schools','Radcliffe Camera','Sheldonian Theatre','Ashmolean Museum']},
   {name:'Science Area & North',via:['Oxford University Museum of Natural History','Keble College Chapel','Andrew Wiles Building','Radcliffe Observatory','Denys Wilkinson Building','Clarendon Laboratory','Beecroft Building (Physics)']}
@@ -42,6 +42,9 @@ function heliModel(){
   add(boxGeo,glass,-1.66,.35,-.9,.08,.62,1.15);
   add(sphereGeo,dark,0,-1.12,-3.2,.3,.3,.3);
   add(sphereGeo,glass,0,-1.15,-3.42,.16,.16,.12);
+  // chin turret under the nose: the gun the player fires
+  add(sphereGeo,steel,0,-1.45,-3.75,.32,.26,.32);
+  add(zc(.07,.07,1.3,8),dark,0,-1.5,-4.5);
   // right side: the open door, the slid-back door panel and the door gun
   add(boxGeo,dark,1.6,.02,.15,.16,1.4,1.95);
   add(boxGeo,navy,1.76,.02,1.65,.06,1.32,1.35);
@@ -87,9 +90,9 @@ function heliModel(){
   return {g,rotor,tail};
 }
 
-/* gunner view: the camera sits in the right-hand door, looking out and down. The minigun, the gunner's gloved hands and
-   the door frame live in a small scene of their own, drawn on top with a 5 cm near plane (the map camera's is 4 m). */
-const GUN_PITCH=.78;
+/* gunner view: the camera sits in the nose, looking ahead and down over the chin gun. The minigun, the gunner's gloved hands
+   and the canopy frame live in a small scene of their own, drawn on top with a 5 cm near plane (the map camera's is 4 m). */
+const GUN_PITCH=.55;
 const fp={scene:new THREE.Scene(),cam:new THREE.PerspectiveCamera(60,1,.05,30),gun:null,barrels:null,flash:null,posts:[],sill:null,spin:0};
 const fpV=new THREE.Vector3(),Y_UP=new THREE.Vector3(0,1,0);
 function cockpitRig(){
@@ -127,7 +130,7 @@ function cockpitRig(){
     seg(cyl(.054,.054,.035),cuff,.15);
     seg(cyl(.06,.05,len*.8),sleeve,.57);
   }
-  // door frame: two posts on the screen edges and the cabin floor sill along the bottom (placed per frame to suit the aspect)
+  // canopy frame: two posts on the screen edges and the instrument coaming along the bottom (placed per frame to suit the aspect)
   for(let k=0;k<2;k++)fp.posts.push(add(fp.scene,boxGeo,frame,0,0,-1.6,.26,4.2,.16));
   fp.sill=add(fp.scene,boxGeo,frame,0,0,-1.6,5,.16,.6);
 }
@@ -289,8 +292,8 @@ function aimRay(sx,sy,out){
 }
 function gunPos(){
   if(H.view==='gun'&&H.mz)return H.mz;
-  const s=Math.sin(H.yaw),c=Math.cos(H.yaw);   // the door is on the right-hand side
-  return [H.x+c*2.4,H.y-.8,H.z-s*2.4];
+  const s=Math.sin(H.yaw),c=Math.cos(H.yaw);   // the chin gun, under the nose
+  return [H.x-s*6.2,H.y-1.9,H.z-c*6.2];
 }
 const tracerGeo=new THREE.BoxGeometry(.25,.25,3.2);
 function fireGun(){
@@ -467,10 +470,11 @@ function updateHeli(dt){
   H.cx+=(H.x+sy*44-H.cx)*k;H.cz+=(H.z+cy*44-H.cz)*k;H.cy+=(H.y+22-H.cy)*k;
   const s=shake*shake*1.4,gv=H.view==='gun';
   if(gv){
-    // gunner view: in the right-hand door (right of the nose is (cos yaw, -sin yaw)), looking out and down; it sways with the bank
-    const d=2.3*1.3,fwd=-(H.vx*sy+H.vz*cy);
-    camera.position.set(H.x+cy*d+(rr()-.5)*s,H.y-.4+(rr()-.5)*s,H.z-sy*d+(rr()-.5)*s);
-    camera.rotation.set(-GUN_PITCH+H.bank*.6,H.yaw-Math.PI/2,clamp(fwd*.006,-.15,.15),'YXZ');
+    // gunner view: in the nose (ahead is (-sin yaw, -cos yaw)), looking forward and down; it rolls with the bank
+    // and dips further as the nose tips down at speed
+    const d=5.2,fwd=-(H.vx*sy+H.vz*cy);
+    camera.position.set(H.x-sy*d+(rr()-.5)*s,H.y-.5+(rr()-.5)*s,H.z-cy*d+(rr()-.5)*s);
+    camera.rotation.set(-GUN_PITCH-clamp(fwd*.006,-.12,.12),H.yaw,H.bank,'YXZ');
   }else{
     camera.position.set(H.cx+(rr()-.5)*s,H.cy+(rr()-.5)*s,H.cz+(rr()-.5)*s);
     camera.lookAt(H.x-sy*30,H.y-10,H.z-cy*30);
@@ -481,8 +485,8 @@ function updateHeli(dt){
   if(Math.abs(camera.fov-fov)>.05){camera.fov=fov;camera.updateProjectionMatrix()}
   camera.updateMatrixWorld();
   if(gv){
-    cam.tx=H.x+cy*60;cam.tz=H.z-sy*60;
-    fitShadow(H.x+cy*35,H.z-sy*35,120,H.yaw-Math.PI/2);
+    cam.tx=H.x-sy*60;cam.tz=H.z-cy*60;
+    fitShadow(H.x-sy*35,H.z-cy*35,120,H.yaw);
     if(fp.gun)updateRig(dt);
   }else{
     cam.tx=H.x-sy*60;cam.tz=H.z-cy*60;
