@@ -2,7 +2,8 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=IBM+Plex+Mono:wght@400;500&family=Work+Sans:wght@400;600&display=swap">
 <style>
-/* Layout: full-bleed 3D map; HUD floats above: brand, score and buttons on top; hint and stats bottom-left, minimap bottom-right. */
+/* Layout: full-bleed 3D map. Both game modes share one layout: score panel top-left, buttons top-right, action bar bottom-centre,
+   and the on-screen keys (WASD bottom-left, R/F top and bottom centre, Q/E on the side edges, L bottom-right). The minimap is hidden for now. */
 :root{
   --ink:#0a1c36;
   --panel:rgba(8,24,48,.8);
@@ -28,13 +29,6 @@ body{
 }
 #c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:crosshair}
 .hud{position:relative;z-index:2;pointer-events:none;display:flex;gap:12px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap}
-.brand b{display:block;font-family:var(--f-display);font-size:clamp(20px,4.5vw,30px);line-height:1;letter-spacing:.01em;text-shadow:0 2px 0 rgba(0,0,0,.35)}
-.brand span{display:block;margin-top:5px;font:500 11px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--stone)}
-.score{text-align:center;background:var(--panel);padding:8px 18px 7px;border-radius:6px;min-width:110px}
-.score span{display:block;font:400 clamp(26px,6vw,38px)/1 var(--f-display);color:var(--stone);font-variant-numeric:tabular-nums}
-.score small{font:500 10px/1 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
-.score small i{font-style:normal;color:var(--alarm);letter-spacing:.04em}
-.mid{display:flex;flex-direction:column;align-items:center;gap:8px}
 .arms{display:flex;gap:6px}
 .arm{position:relative;overflow:hidden;padding:9px 12px 10px}
 .arm b{font:500 10px/1 var(--f-mono);color:var(--mute);margin-right:6px}
@@ -46,13 +40,25 @@ button{pointer-events:auto;font:600 13px/1 var(--f-body);color:var(--chalk);back
 button:hover{border-color:var(--stone)}
 button:focus-visible{outline:2px solid var(--stone);outline-offset:2px}
 button.primary{background:var(--stone);color:var(--ink);border-color:var(--stone)}
-.bottom{align-items:flex-end;flex-wrap:nowrap}
-.left{display:flex;flex-direction:column;gap:8px;min-width:0}
-.stats{display:flex;gap:1px;background:var(--panel);border-radius:6px;overflow:hidden;align-self:flex-start}
-.stats div{padding:8px 14px;min-width:84px}
-.stats b{display:block;font:500 17px/1.1 var(--f-mono);font-variant-numeric:tabular-nums}
-.stats small{font:500 10px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
-.hint{font:500 11px/1.5 var(--f-mono);background:var(--panel);padding:8px 12px;border-radius:6px;max-width:330px}
+.tl{display:flex;flex-direction:column;gap:8px;align-items:flex-start;min-width:0}
+/* on-screen keys, straight on the map in both game modes. They light up with the keyboard and can be held with the mouse. */
+.kc{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:5px;border:1px solid rgba(255,255,255,.55);border-bottom-width:3px;
+  font:600 12px/1 var(--f-mono);font-style:normal;color:var(--chalk);background:rgba(8,24,48,.55);pointer-events:auto;cursor:pointer;user-select:none;touch-action:none;
+  box-shadow:0 1px 4px rgba(8,24,48,.5)}
+.kc.on{background:var(--stone);color:var(--ink);border-color:var(--stone)}
+.kpad{position:fixed;left:max(16px,env(safe-area-inset-left,0px));bottom:14px;z-index:2;display:grid;grid-template-columns:repeat(3,28px);gap:4px}
+.kv{position:fixed;left:50%;transform:translateX(-50%);z-index:2;display:flex;flex-direction:column;align-items:center;gap:3px}
+#kR{top:12px}
+#kF{bottom:62px}
+.kv b,.qe b{font:700 18px/1 var(--f-body);color:var(--stone);text-shadow:0 1px 3px rgba(8,24,48,.95)}
+.qe{position:fixed;top:50%;transform:translateY(-50%);z-index:2;display:flex;align-items:center;gap:6px;pointer-events:none}
+#qeL{left:max(16px,env(safe-area-inset-left,0px))}
+#qeR{right:max(16px,env(safe-area-inset-right,0px))}
+.klbl{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:14px;z-index:2;display:flex;align-items:center;gap:7px}
+.klbl em{font:600 10px/1 var(--f-mono);font-style:normal;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap;text-shadow:0 1px 3px rgba(8,24,48,.95)}
+body.mode-menu .edge{display:none}
+body.mode-heli #k-KeyA,body.mode-heli #k-KeyD{visibility:hidden}
+@media (pointer:coarse),(max-width:560px){.keyb{display:none}}
 .where{font:500 11px/1 var(--f-mono);letter-spacing:.08em;color:var(--stone);background:var(--panel);padding:7px 10px;border-radius:6px;align-self:flex-start;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #mm{position:relative;pointer-events:auto;flex:none;width:clamp(120px,24vw,200px);aspect-ratio:4788/3538;border-radius:6px;overflow:hidden;border:1px solid rgba(255,255,255,.22);background:#1c2f45;touch-action:none;cursor:pointer}
 #mm canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
@@ -75,15 +81,14 @@ button.primary{background:var(--stone);color:var(--ink);border-color:var(--stone
 .pop.don{color:var(--chalk);font-size:17px}
 @keyframes rise{from{opacity:1;margin-top:0}to{opacity:0;margin-top:-70px}}
 /* modes: body.mode-menu | mode-bomb | mode-heli */
-body.mode-menu .hud,body.mode-menu .heli-only,body.mode-bomb .heli-only{display:none}
-body.mode-heli header.hud,body.mode-menu #labels{display:none}
-body.mode-heli footer.hud{margin-top:auto}
-body.mode-heli .bomb-only{visibility:hidden}
+body.mode-menu #labels,body:not(.mode-heli) .heli-only,body:not(.mode-bomb) .bomb-only{display:none}
 #menu{position:fixed;inset:0;z-index:4;display:none;align-items:center;justify-content:center;padding:24px 16px;overflow:auto;
   background:linear-gradient(180deg,rgba(10,28,54,.45),rgba(10,28,54,.86))}
 body.mode-menu #menu{display:flex}
 .menuin{width:min(720px,100%);display:flex;flex-direction:column;gap:22px}
 .mhead b{display:block;font:400 clamp(40px,9vw,72px)/.95 var(--f-display);text-shadow:0 3px 0 rgba(0,0,0,.35)}
+#tapsound{align-self:flex-start;font:500 11px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--chalk);background:var(--panel);padding:8px 12px;border-radius:6px;animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.45}}
 .mhead span{display:block;margin-top:12px;font:500 12px/1.4 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--stone)}
 .modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
 .mode{display:flex;flex-direction:column;align-items:flex-start;gap:9px;text-align:left;padding:18px 18px 20px;border-radius:8px;transition:transform .15s,border-color .15s}
@@ -95,13 +100,14 @@ body.mode-menu #menu{display:flex}
 .recs div{padding:10px 16px;min-width:130px}
 .recs b{display:block;font:500 20px/1.1 var(--f-mono);font-variant-numeric:tabular-nums}
 .recs small{font:500 10px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
-/* helicopter HUD */
-.heli{position:fixed;top:12px;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));z-index:2;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;pointer-events:none}
+/* game HUD (shared by bombing and the helicopter) */
+.topbar{position:fixed;top:12px;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));z-index:2;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;pointer-events:none}
 .hpanel{background:var(--panel);border-radius:8px;padding:12px 16px 14px;min-width:200px}
 .hpanel small{display:block;font:500 10px/1.4 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
 .hpanel small b{color:var(--chalk);font-weight:500}
-#hround{color:var(--stone)}
-#hscore{display:block;margin:4px 0 6px;font:400 clamp(28px,6vw,40px)/1 var(--f-display);font-variant-numeric:tabular-nums}
+#hround,.hpanel .mt{color:var(--stone)}
+.hpanel small i{font-style:normal;color:var(--alarm);letter-spacing:.04em}
+#hscore,#score{display:block;margin:4px 0 6px;font:400 clamp(28px,6vw,40px)/1 var(--f-display);font-variant-numeric:tabular-nums}
 .hp{display:flex;align-items:center;gap:8px;margin-top:10px;font:500 11px/1 var(--f-mono)}
 .hp b{min-width:26px;text-align:right}
 .hpbar{flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,.12);overflow:hidden}
@@ -109,6 +115,7 @@ body.mode-menu #menu{display:flex}
 .hbot{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:2;display:flex;align-items:center;gap:8px;pointer-events:none}
 .hbot>span{background:var(--panel);border-radius:6px;padding:10px 12px;font:500 11px/1 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
 #hmk{color:var(--stone)}
+.hbot button b{font:500 10px/1 var(--f-mono);color:var(--mute);margin-left:7px}
 #hauto.man{color:var(--alarm)}
 .msl{position:relative;overflow:hidden;background:rgba(120,90,30,.85);border-color:var(--stone)}
 .msl i{position:absolute;left:0;bottom:0;width:100%;height:3px;background:var(--alarm);transform-origin:left;transform:scaleX(var(--cd,0))}
@@ -116,25 +123,58 @@ body.mode-menu #menu{display:flex}
 .bst{background:var(--panel);border-color:rgba(255,255,255,.18);touch-action:none}
 .bst i{background:var(--stone);transform:scaleX(var(--en,1))}
 .bst.on{border-color:var(--stone);background:rgba(120,90,30,.85)}
-.hhint{position:fixed;left:max(16px,env(safe-area-inset-left,0px));bottom:14px;z-index:2;font:500 11px/1.5 var(--f-mono);background:var(--panel);padding:8px 12px;border-radius:6px;max-width:300px;pointer-events:none}
 #xhair{position:fixed;left:0;top:0;width:34px;height:34px;margin:-17px 0 0 -17px;border:2px solid rgba(255,255,255,.85);border-radius:50%;z-index:2;pointer-events:none;box-shadow:0 0 0 1px rgba(8,24,48,.5)}
 #xhair::after{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;border-radius:50%;background:var(--alarm)}
 body.mode-heli #c{cursor:none}
 #joy{position:fixed;left:24px;bottom:28px;width:124px;height:124px;border-radius:50%;background:rgba(8,24,48,.45);border:1px solid rgba(255,255,255,.25);touch-action:none;pointer-events:auto;z-index:3;display:none}
 #joyk{position:absolute;left:50%;top:50%;width:50px;height:50px;margin:-25px;border-radius:50%;background:rgba(230,189,98,.85)}
-@media (pointer:coarse){body.mode-heli #joy{display:block}.hhint{display:none}#xhair{display:none}}
-@media (max-width:700px){.hhint{display:none}}
+@media (pointer:coarse){body.mode-heli #joy{display:block}#xhair{display:none}}
 #banner{position:fixed;left:50%;top:26%;transform:translate(-50%,-50%);z-index:3;text-align:center;pointer-events:none;text-shadow:0 2px 0 rgba(0,0,0,.5)}
 #banner b{display:block;font:400 clamp(28px,6vw,44px)/1 var(--f-display);color:var(--stone)}
 #banner span{display:block;margin-top:8px;font:500 12px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase}
-.card{position:fixed;left:50%;top:44%;transform:translate(-50%,-50%);z-index:6;text-align:center;background:var(--panel);padding:22px 24px;border-radius:10px;width:min(420px,calc(100vw - 32px));border:1px solid rgba(255,255,255,.15)}
-.card b{display:block;font:400 26px/1.15 var(--f-display);color:var(--stone)}
-.card p{margin:10px 0 18px;font:400 14px/1.5 var(--f-body)}
-.cardbtns{display:flex;gap:8px;justify-content:center}
+/* modal sheets: the how-to-play booklet, the end-of-game summary, and Info */
+.modal{position:fixed;inset:0;z-index:6;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(6,16,32,.5)}
+.sheet{background:rgba(8,24,48,.95);border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:22px 24px;width:min(460px,100%);max-height:calc(100vh - 32px);overflow:auto}
+.sheet.wide{width:min(560px,100%)}
+.sheet .mt{display:block;font:500 10px/1.4 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--stone)}
+.sheet h2{margin:6px 0 14px;font:400 28px/1.1 var(--f-display)}
+.sheet p{margin:0 0 12px;font:400 14px/1.55 var(--f-body);color:var(--chalk)}
+.sheet a{color:var(--stone)}
+.rules{margin:0 0 16px;padding-left:18px;font:400 14px/1.55 var(--f-body)}
+.rules li{margin:4px 0}
+kbd{font:500 11px/1 var(--f-mono);padding:2px 5px;border:1px solid rgba(255,255,255,.4);border-bottom-width:2px;border-radius:4px;background:rgba(255,255,255,.06)}
+.opt small{font:500 10px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+.seg{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 18px}
+.tod .seg{margin:8px 0 0}
+.seg button.on{background:var(--stone);color:var(--ink);border-color:var(--stone)}
+.cardbtns{display:flex;gap:8px;flex-wrap:wrap}
+a.btn{display:inline-block;text-decoration:none;font:600 13px/1 var(--f-body);color:var(--chalk);background:var(--panel);border:1px solid rgba(255,255,255,.18);padding:10px 14px;border-radius:6px}
+a.btn:hover{border-color:var(--stone)}
+#sumScore{display:block;font:400 clamp(36px,8vw,48px)/1 var(--f-display);font-variant-numeric:tabular-nums}
+#sumBest{display:block;margin-top:6px;font:500 11px/1 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
+#sumBest.rec{color:var(--alarm)}
+.sgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:rgba(255,255,255,.1);border-radius:6px;overflow:hidden;margin:16px 0}
+.sgrid div{background:rgba(8,24,48,.95);padding:9px 10px}
+.sgrid b{display:block;font:500 16px/1.1 var(--f-mono);font-variant-numeric:tabular-nums}
+.sgrid small{font:500 9px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+@media (max-width:420px){.sgrid{grid-template-columns:repeat(2,1fr)}}
+#sumMore{margin:0 0 16px}
+#sumMore dl{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:0 0 14px;font:400 13px/1.35 var(--f-body)}
+#sumMore dt{color:var(--mute)}
+#sumMore dd{margin:0}
+#sumMore h3{margin:0 0 6px;font:500 10px/1 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--stone)}
+#sumBld{margin:0;padding-left:22px;max-height:220px;overflow:auto;font:400 13px/1.5 var(--f-body)}
+.gh{display:inline-block;margin-top:14px;font:500 11px/1 var(--f-mono);letter-spacing:.06em;color:var(--mute)!important;text-decoration:none}
+.gh:hover{color:var(--stone)!important}
+.mfoot{font:500 11px/1 var(--f-mono);letter-spacing:.08em;color:var(--mute)}
+.mfoot button{padding:0;border:0;background:none;font:inherit;color:inherit;letter-spacing:inherit;text-decoration:underline;text-underline-offset:3px}
+.mfoot a{color:inherit;text-underline-offset:3px}
+.mfoot button:hover,.mfoot a:hover{color:var(--stone)}
+#btime.low{color:var(--alarm)}
 #hurt{position:fixed;inset:0;z-index:2;pointer-events:none;opacity:0;box-shadow:inset 0 0 140px rgba(255,60,40,.75)}
 #hurt.go{animation:hurt .5s ease-out}
 @keyframes hurt{0%{opacity:1}100%{opacity:0}}
-@media (max-width:560px){.hint{display:none}.hbot{left:auto;right:16px;transform:none;bottom:118px;flex-direction:column;align-items:flex-end}.hpanel{min-width:0}.stats div{min-width:0;padding:7px 10px}.arm{padding:8px 9px 9px}.arm b{display:none}.lbl.col{font-size:11px}}
+@media (max-width:560px){.hbot{left:auto;right:16px;transform:none;bottom:118px;flex-direction:column;align-items:flex-end}.hpanel{min-width:0}.arm{padding:8px 9px 9px}.arm b{display:none}.lbl.col{font-size:11px}}
 @media (prefers-reduced-motion:reduce){.pop{animation-duration:.01s}#flash.go{animation-duration:.3s}}
 </style>
 
@@ -146,56 +186,80 @@ body.mode-heli #c{cursor:none}
 <div id="menu">
   <div class="menuin">
     <div class="mhead"><b>Oxford Break</b><span>Oxford from OpenStreetMap · stylised · breakable</span></div>
+    <div id="tapsound">Click anywhere for sound</div>
     <div class="modes">
-      <button id="playBomb" class="mode" type="button"><em>Free destruction</em><b>Bombing</b><span>Bomb, meteor and nuke. Pan around and level the city at your own pace.</span></button>
-      <button id="playHeli" class="mode" type="button"><em>Two-round campaign</em><b>Helicopter</b><span>The autopilot flies the route, or take the controls. Aim, fire, and mind the dons: they shoot back.</span></button>
+      <button id="playBomb" class="mode" type="button"><em>Against the clock</em><b>Bombing</b><span>Bomb, meteor and nuke. Level as much of the city as you can before time runs out.</span></button>
+      <button id="playHeli" class="mode" type="button"><em>One run · two routes</em><b>Helicopter</b><span>The autopilot flies the route, or take the controls. Aim, fire, and mind the dons: they shoot back.</span></button>
     </div>
-    <div class="recs"><div><small>Lifetime points</small><b id="recLife">0</b></div><div><small>Best flight</small><b id="recFlight">—</b></div></div>
+    <div class="opt tod"><small>Time of day</small><div class="seg"><button id="todDay" type="button">Day</button><button id="todNight" type="button">Night</button></div></div>
+    <div class="recs"><div><small>All-time points</small><b id="recLife">0</b></div><div><small>Best flight</small><b id="recFlight">—</b></div></div>
+    <div class="mfoot"><button id="infoBtn" type="button">Info</button> · <a href="https://github.com/Jintian-JTST/oxford-break" target="_blank" rel="noopener">GitHub ↗</a></div>
   </div>
 </div>
 
-<div class="heli heli-only">
+<div class="topbar heli-only">
   <div class="hpanel">
-    <small id="hround">Round 1</small>
+    <small id="hround">Helicopter</small>
     <span id="hscore">0</span>
-    <small><b id="hkills">0</b> dons down · <b id="htime">1:40</b></small>
+    <small><b id="hkills">0</b> dons down · <b id="htime">1:40</b> left</small>
     <div class="hp"><span>HP</span><b id="hpv">100</b><div class="hpbar"><i id="hpfill"></i></div></div>
   </div>
-  <div class="btns"><button id="hmute" type="button">Sound on</button><button id="hmenu" type="button">Menu</button></div>
+  <div class="btns"><button id="hmute" type="button">Sound on</button><button id="hmusic" type="button">Music on</button><button id="hinfo" type="button" title="Info">i</button><button id="hmenu" type="button">Menu</button></div>
 </div>
-<div class="hbot heli-only"><span id="hmk">MK I</span><span id="hauto">Autopilot</span><button id="boost" class="msl bst" type="button">Boost<i></i></button><button id="missile" class="msl" type="button">Missile<i></i></button></div>
-<div class="hhint heli-only">Mouse to aim · hold to fire · right-click or E: missile<br>W/S A/D fly · Space / Shift up and down · hold F to boost<br>Let go for 3 s and the autopilot takes over</div>
+<div class="hbot heli-only"><span id="hmk">MK I</span><span id="hauto">Autopilot</span><button id="view" type="button"><span id="viewT">Gunner view</span><b>C</b></button><button id="boost" class="msl bst" type="button">Boost<b>Shift</b><i></i></button><button id="missile" class="msl" type="button">Missile<b>Space</b><i></i></button></div>
 <div id="xhair" class="heli-only"></div>
 <div id="joy"><i id="joyk"></i></div>
 <div id="banner" hidden><b id="bannerT"></b><span id="bannerS"></span></div>
-<div id="card" class="card" hidden><b id="cardT"></b><p id="cardS"></p><div class="cardbtns"><button id="cardA" class="primary" type="button"></button><button id="cardB" type="button"></button></div></div>
+<div id="guide" class="modal" hidden><div class="sheet wide">
+  <span class="mt">How to play</span><h2 id="gT">Bombing</h2>
+  <ul id="gList" class="rules"></ul>
+  <div class="opt"><small id="gOptL">Round length</small><div class="seg" id="gOpt"></div></div>
+  <div class="cardbtns"><button id="gStart" class="primary" type="button">Start</button><button id="gMenu" type="button">Menu</button></div>
+</div></div>
+<div id="summary" class="modal" hidden><div class="sheet">
+  <span class="mt" id="sumKind">Free bombing</span><h2 id="sumT">Time's up</h2>
+  <span id="sumScore">0</span><span id="sumBest"></span>
+  <div class="sgrid" id="sumGrid"></div>
+  <div id="sumMore" hidden><dl id="sumList"></dl><h3>Buildings destroyed</h3><ol id="sumBld"></ol></div>
+  <div class="cardbtns"><button id="sumAgain" class="primary" type="button">Play again</button><button id="sumDet" type="button">Details</button><button id="sumMenu" type="button">Menu</button></div>
+  <a class="gh" href="https://github.com/Jintian-JTST/oxford-break" target="_blank" rel="noopener">Source on GitHub ↗</a>
+</div></div>
+<div id="info" class="modal" hidden><div class="sheet">
+  <span class="mt">About</span><h2>Oxford Break</h2>
+  <p>Oxford's real streets and buildings, taken from OpenStreetMap and rebuilt as a stylised 3D city you can knock down. Two modes: bombing against the clock, and a helicopter run with a door gunner.</p>
+  <p>Modelled on <a href="https://peerlyhk.com/campus-break" target="_blank" rel="noopener">Campus Break</a> by Peerly, the HKU original. This Oxford version is an independent remake with its own code and art.</p>
+  <p>Map data © OpenStreetMap contributors (ODbL). 3D with three.js. Made by Jintian.</p>
+  <div class="cardbtns"><a class="btn" href="https://github.com/Jintian-JTST/oxford-break" target="_blank" rel="noopener">Source on GitHub ↗</a><button id="infoClose" class="primary" type="button">Close</button></div>
+</div></div>
 <div id="hurt"></div>
 
-<header class="hud">
-  <div class="brand"><b>Oxford Break</b><span>OpenStreetMap, stylised</span></div>
-  <div class="mid">
-    <div class="score"><span id="score">0</span><small>points <i id="mult"></i></small></div>
-    <div class="arms" role="group" aria-label="Weapon">
-      <button class="arm on" type="button"><b>1</b>Bomb<i></i></button><button class="arm" type="button"><b>2</b>Meteor<i></i></button><button class="arm" type="button"><b>3</b>Nuke<i></i></button>
+<div class="topbar bomb-only">
+  <div class="tl">
+    <div class="hpanel">
+      <small class="mt">Free bombing</small>
+      <span id="score">0</span>
+      <small><b id="down">0</b> collapsed · <b id="dons">0</b> dons launched <i id="mult"></i></small>
+      <small id="btime">Clock starts with your first bomb</small>
     </div>
+    <div class="where" id="where">—</div>
   </div>
-  <div class="btns"><button id="lblbtn" type="button">Labels on</button><button id="mute" type="button">Sound on</button><button id="rebuild" type="button">Rebuild</button><button id="tomenu" type="button">Menu</button></div>
-</header>
+  <div class="btns"><button id="mute" type="button">Sound on</button><button id="music" type="button">Music on</button><button id="rebuild" type="button">Restart</button><button id="binfo" type="button" title="Info">i</button><button id="tomenu" type="button">Menu</button></div>
+</div>
+<div class="hbot bomb-only"><div class="arms" role="group" aria-label="Weapon">
+  <button class="arm on" type="button"><b>1</b>Bomb<i></i></button><button class="arm" type="button"><b>2</b>Meteor<i></i></button><button class="arm" type="button"><b>3</b>Nuke<i></i></button>
+</div></div>
+
+<!-- on-screen keys, both game modes -->
+<div class="kv keyb edge" id="kR"><b>↑</b><i class="kc" id="k-KeyR">R</i></div>
+<div class="kv keyb edge" id="kF"><i class="kc" id="k-KeyF">F</i><b>↓</b></div>
+<div class="qe keyb edge" id="qeL"><b>←</b><i class="kc" id="k-edgeL">Q</i></div>
+<div class="qe keyb edge" id="qeR"><i class="kc" id="k-edgeR">E</i><b>→</b></div>
+<div class="kpad keyb edge"><span></span><i class="kc" id="k-KeyW">W</i><span></span><i class="kc" id="k-KeyA">A</i><i class="kc" id="k-KeyS">S</i><i class="kc" id="k-KeyD">D</i></div>
+<div class="klbl edge"><i class="kc" id="k-KeyL">L</i><em id="lblbtn">Labels on</em></div>
 
 <div id="loading"><b>Oxford Break</b><span id="loadmsg">Raising 9,000 buildings…</span></div>
 
-<footer class="hud bottom">
-  <div class="left bomb-only">
-    <div class="hint">Click to drop · 1 2 3 pick bomb, meteor, nuke<br>Drag or two-finger swipe to pan · wheel or pinch to zoom<br>Right-drag, shift + swipe, Q/E · R/F to rotate and tilt<br>Space drops at centre · L labels · click the map to jump</div>
-    <div class="where" id="where">—</div>
-    <div class="stats">
-      <div><b id="down">0</b><small>Buildings down</small></div>
-      <div><b id="dons">0</b><small>Dons launched</small></div>
-      <div><b id="life">0</b><small>Lifetime</small></div>
-    </div>
-  </div>
-  <div id="mm" title="Click to jump"><canvas id="mmc"></canvas><canvas id="mmo"></canvas><div id="mmdot"></div></div>
-</footer>
+<div id="mm" hidden title="Click to jump"><canvas id="mmc"></canvas><canvas id="mmo"></canvas><div id="mmdot"></div></div>
 
 <script id="data" type="application/json">/*DATA*/</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>

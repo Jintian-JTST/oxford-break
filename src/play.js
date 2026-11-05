@@ -53,6 +53,11 @@ let score=0,downCount=0,donCount=0,life=0,shake=0,muted=false;
 // Explosions that bring something down within COMBO_T of the previous one raise the multiplier.
 const COMBO_T=2;
 let combo=0,lastDown=-9,mult=1;
+// The current game. Bombing runs against a clock that starts with the first bomb; the helicopter flies one route.
+// paused: the booklet or Info is open, and the game modes update with dt = 0.
+const G={on:false,started:false,over:false,limit:120,t:0,endT:0,shownLeft:null,stats:null};
+let paused=false;
+function newStats(){return {named:[],other:0,weapons:{},combo:1,dist:0}}
 // fxQ scales debris and dust per collapse, so one nuke levelling 200 buildings stays affordable.
 let fxQ=1;
 // 'menu' | 'bomb' | 'heli' (see main.js)
@@ -129,6 +134,162 @@ function boom(size){
   o.connect(og).connect(out);o.start(t);o.stop(t+.7*size);
 }
 
+// A collapsing building rumbles; a short cooldown keeps a chain reaction from stacking dozens of them.
+let rumbleT=0;
+function rumble(h){
+  if(!ac||muted||ac.currentTime<rumbleT)return;
+  const t=ac.currentTime,len=.8+Math.min(1.2,h/25);rumbleT=t+.12;
+  const s=ac.createBufferSource();s.buffer=noise;s.playbackRate.value=.35+rr()*.15;
+  const f=ac.createBiquadFilter();f.type='lowpass';f.frequency.setValueAtTime(260,t);f.frequency.exponentialRampToValueAtTime(60,t+len);
+  const g=ac.createGain();g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(Math.min(.55,.2+h/60),t+.08);g.gain.exponentialRampToValueAtTime(.0001,t+len);
+  s.connect(f).connect(g).connect(out);s.start(t);s.stop(t+len+.05);
+}
+// A round hitting the airframe: two detuned square partials, very short.
+function clank(){
+  if(!ac||muted)return;
+  const t=ac.currentTime;
+  for(const fq of [1180,1730]){
+    const o=ac.createOscillator(),g=ac.createGain();o.type='square';o.frequency.value=fq*(.95+rr()*.1);
+    g.gain.setValueAtTime(.05,t);g.gain.exponentialRampToValueAtTime(.0001,t+.18);o.connect(g).connect(out);o.start(t);o.stop(t+.2);
+  }
+}
+
+/* Ambience and music, all synthesised: a wind bed over the roofs, a distant college bell now and then, the helicopter's
+   rotor chop and turbine whine, and a small generative score (calm for bombing, driving for the helicopter).
+   updateAudio() runs every frame, sets the levels and schedules the music a quarter-second ahead. */
+let bed=null,rotorA=null,musG=null,duck=null,revIn=null,white=null,soundOn=false,musicOn=true,musT=0,musStep=0,bellT=10;
+try{musicOn=localStorage.getItem('oxford-break-music')!=='off'}catch(e){}
+function startBeds(){
+  const len=ac.sampleRate*2,buf=ac.createBuffer(1,len,ac.sampleRate),d=buf.getChannelData(0);
+  for(let i=0;i<len;i++)d[i]=Math.random()*2-1;
+  white=buf;
+  const loop=rate=>{const s=ac.createBufferSource();s.buffer=buf;s.loop=true;s.playbackRate.value=rate;s.start();return s};
+  const bf=ac.createBiquadFilter();bf.type='lowpass';bf.frequency.value=380;
+  const bg=ac.createGain();bg.gain.value=0;loop(1).connect(bf).connect(bg).connect(out);
+  bed={g:bg};
+  // rotor: low-passed noise whose level a triangle LFO swings at the blade-pass rate
+  const rf=ac.createBiquadFilter();rf.type='lowpass';rf.frequency.value=520;
+  const chop=ac.createGain();chop.gain.value=.5;
+  const lfo=ac.createOscillator();lfo.type='triangle';lfo.frequency.value=19;
+  const lg=ac.createGain();lg.gain.value=.5;lfo.connect(lg).connect(chop.gain);lfo.start();
+  const rg=ac.createGain();rg.gain.value=0;loop(.7).connect(rf).connect(chop).connect(rg).connect(out);
+  const w=ac.createOscillator();w.type='sawtooth';w.frequency.value=1650;
+  const wf=ac.createBiquadFilter();wf.type='bandpass';wf.frequency.value=1650;wf.Q.value=8;
+  const wg=ac.createGain();wg.gain.value=0;w.connect(wf).connect(wg).connect(out);w.start();
+  rotorA={rg,lfo,w,wf,wg};
+  // music bus: master gain, a duck stage the kick pulls down, and a reverb send fed by a generated 2.4 s impulse
+  musG=ac.createGain();musG.gain.value=0;musG.connect(out);
+  duck=ac.createGain();duck.connect(musG);
+  const rl=Math.floor(ac.sampleRate*2.4),imp=ac.createBuffer(2,rl,ac.sampleRate);
+  for(let c=0;c<2;c++){const x=imp.getChannelData(c);for(let i=0;i<rl;i++)x[i]=(Math.random()*2-1)*Math.pow(1-i/rl,3)}
+  const rev=ac.createConvolver();rev.buffer=imp;rev.connect(musG);
+  revIn=ac.createGain();revIn.gain.value=.4;revIn.connect(rev);duck.connect(revIn);
+}
+/* The score: one 16-step sequencer in D minor (Dm Bb C Am) with three styles.
+   menu: slow detuned pads and a sparse arpeggio; bomb: 118 bpm with a syncopated kick, snare, hats and bass;
+   heli: 140 bpm, four on the floor and a rolling octave bass. In both game modes a lead takes over from the arpeggio
+   for four bars in every eight. Pads, arpeggio and lead duck under each kick and go through a generated reverb. */
+const PROG=[[50,53,57],[46,50,53],[48,52,55],[45,48,52]];
+const PROG_N=[[45,48,52],[41,45,48],[43,47,50],[40,43,47]];   // night: Am F G Em, lower and darker
+const STYLE={
+  menu:{bpm:84,kick:[],snare:[],hat:0,bass:[0],lead:false,arp:4},
+  bomb:{bpm:118,kick:[0,7,10],snare:[4,12],hat:2,bass:[0,3,6,10,14],lead:true,arp:2},
+  heli:{bpm:140,kick:[0,4,8,12],snare:[4,12],hat:1,bass:[0,2,4,6,8,10,12,14],lead:true,arp:2},
+  night:{bpm:66,kick:[],snare:[],hat:0,bass:[0],lead:false,arp:2}};          // the menu at night: a slow nocturne
+// [step, chord tone (0 root, 1 third, 2 fifth, 3 octave, 4 third up), length in steps], one motif for even bars and one for odd
+const LEAD=[[[0,3,3],[3,2,1],[4,3,2],[6,4,2],[8,3,3],[11,2,1],[12,1,2],[14,2,2]],
+            [[0,4,2],[2,3,2],[4,2,2],[6,3,4],[10,2,2],[12,1,2],[14,0,2]]];
+const ARP=[0,1,2,3,2,1,4,2];
+const hz=n=>440*Math.pow(2,(n-69)/12);
+function voice(type,f,t,dur,vol,cut,dest,det){
+  const o=ac.createOscillator(),fl=ac.createBiquadFilter(),g=ac.createGain();
+  o.type=type;o.frequency.value=f;o.detune.value=det||0;fl.type='lowpass';fl.frequency.value=cut;
+  g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+Math.min(.01+dur*.2,.5));g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+  o.connect(fl).connect(g).connect(dest);o.start(t);o.stop(t+dur+.05);
+}
+function pad(ch,t,dur,vol,cut){for(const n of ch)for(const d of [-9,9])voice('sawtooth',hz(n),t,dur,vol,cut,duck,d)}
+// crickets at night: three quick high chirps
+function chirp(t){
+  const f=3900+rr()*900;
+  for(let k=0;k<3;k++){
+    const o=ac.createOscillator(),g=ac.createGain(),t0=t+k*.07;o.frequency.value=f;
+    g.gain.setValueAtTime(.0001,t0);g.gain.exponentialRampToValueAtTime(.007,t0+.01);g.gain.exponentialRampToValueAtTime(.0001,t0+.04);
+    o.connect(g).connect(out);o.start(t0);o.stop(t0+.05);
+  }
+}
+function lead(n,t,dur){voice('square',hz(n),t,dur,.028,2600,duck);voice('sawtooth',hz(n),t,dur,.018,2200,duck,7)}
+function bass(n,t,dur,vol){
+  const o=ac.createOscillator(),fl=ac.createBiquadFilter(),g=ac.createGain();
+  o.type='sawtooth';o.frequency.value=hz(n);fl.type='lowpass';fl.Q.value=6;
+  fl.frequency.setValueAtTime(1200,t);fl.frequency.exponentialRampToValueAtTime(140,t+dur);
+  g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+  o.connect(fl).connect(g).connect(musG);o.start(t);o.stop(t+dur+.05);
+}
+function kick(t){
+  const o=ac.createOscillator(),g=ac.createGain();
+  o.frequency.setValueAtTime(150,t);o.frequency.exponentialRampToValueAtTime(42,t+.12);
+  g.gain.setValueAtTime(.24,t);g.gain.exponentialRampToValueAtTime(.0001,t+.35);o.connect(g).connect(musG);o.start(t);o.stop(t+.4);
+  duck.gain.setValueAtTime(.3,t);duck.gain.linearRampToValueAtTime(1,t+.22);
+}
+function hit(t,type,f,q,vol,dur,dest){
+  const s=ac.createBufferSource(),fl=ac.createBiquadFilter(),g=ac.createGain();
+  s.buffer=white;fl.type=type;fl.frequency.value=f;fl.Q.value=q;
+  g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+  s.connect(fl).connect(g).connect(dest);s.start(t,rr()*1.5);s.stop(t+dur+.02);
+}
+function snare(t){
+  hit(t,'bandpass',1900,.8,.14,.2,musG);hit(t,'bandpass',1900,.8,.06,.2,revIn);
+  const o=ac.createOscillator(),g=ac.createGain();o.type='triangle';o.frequency.value=190;
+  g.gain.setValueAtTime(.07,t);g.gain.exponentialRampToValueAtTime(.0001,t+.1);o.connect(g).connect(musG);o.start(t);o.stop(t+.12);
+}
+function schedMusic(){
+  const st=night&&mode==='menu'?STYLE.night:STYLE[mode]||STYLE.menu,s16=60/st.bpm/4,P=night?PROG_N:PROG;
+  while(musT<ac.currentTime+.2){
+    const i=musStep%16,bar=Math.floor(musStep/16),ch=P[bar%4],t=musT;
+    const tones=[ch[0],ch[1],ch[2],ch[0]+12,ch[1]+12];
+    if(i===0)pad(ch,t,s16*16,mode==='menu'?.03:.02,night?750:1100);
+    if(st.kick.includes(i)||(mode==='bomb'&&i===8&&bar%2))kick(t);
+    if(st.snare.includes(i))snare(t);
+    if(st.hat&&i%st.hat===0)hit(t,'highpass',7500,.7,i%4===2?.05:.022,.05,musG);
+    if(st.bass.includes(i))bass(ch[0]-12+(mode==='heli'&&i%4===2?12:0),t,s16*(mode==='heli'?1.7:2.4),mode==='menu'?.05:.08);
+    if(st.lead&&bar%8>=4){for(const [k,ti,len] of LEAD[bar%2])if(k===i)lead(tones[ti]+12,t,s16*len)}
+    else if(i%st.arp===0)voice(night?'sine':'triangle',hz(tones[ARP[(i/st.arp|0)%8]]+12),t,s16*(night?4:3),mode==='menu'?.035:.022,night?2000:3000,duck);
+    musStep++;musT+=s16;
+  }
+}
+// a college bell some way off: inharmonic partials with a long fade
+function bell(t){
+  const base=170+rr()*70,f=ac.createBiquadFilter();f.type='lowpass';f.frequency.value=1800;f.connect(out);
+  for(const [m,v] of [[1,.045],[2,.028],[2.4,.022],[3,.014],[4.2,.008]]){
+    const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=base*m;
+    g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(v,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+1+4/m);
+    o.connect(g).connect(f);o.start(t);o.stop(t+1.2+4/m);
+  }
+}
+function updateAudio(dt){
+  // browsers keep audio off until the first click or key; the menu says so until then
+  const on=!!ac&&ac.state==='running';
+  if(on!==soundOn){soundOn=on;$('tapsound').hidden=on}
+  if(!ac)return;
+  if(!bed){if(muted)return;startBeds()}
+  const now=ac.currentTime,flying=mode==='heli'&&(H.phase==='fly'||H.phase==='crash'),door=H.view==='gun';
+  bed.g.gain.setTargetAtTime(muted?0:(flying?.02:.05)*(1+.4*Math.sin(now*.23)),now,.5);
+  rotorA.rg.gain.setTargetAtTime(muted||!flying?0:door?.5:.28,now,.15);
+  rotorA.wg.gain.setTargetAtTime(muted||!flying?0:door?.016:.01,now,.15);
+  const wf=H.boosting?2100:1650;
+  rotorA.lfo.frequency.setTargetAtTime(H.boosting?24:19,now,.4);rotorA.w.frequency.setTargetAtTime(wf,now,.5);rotorA.wf.frequency.setTargetAtTime(wf,now,.5);
+  musG.gain.setTargetAtTime(muted||!musicOn?0:1,now,.3);
+  if(musicOn&&!muted){if(musT<now)musT=now+.05;schedMusic()}
+  if(night&&!muted&&!flying&&rr()<dt*.8)chirp(now+rr()*.1);
+  if(!muted&&!flying&&(bellT-=dt)<=0){bellT=25+rr()*30;const n=2+Math.floor(rr()*3);for(let i=0;i<n;i++)bell(now+i*1.7)}
+}
+function toggleMusic(){
+  musicOn=!musicOn;$('music').textContent=$('hmusic').textContent=musicOn?'Music on':'Music off';
+  try{localStorage.setItem('oxford-break-music',musicOn?'on':'off')}catch(e){}
+  ensureAudio();
+}
+$('music').textContent=$('hmusic').textContent=musicOn?'Music on':'Music off';
+
 /* ---------- hud ---------- */
 const v3=new THREE.Vector3();
 function pop(text,x,y,z,cls){
@@ -138,8 +299,9 @@ function pop(text,x,y,z,cls){
   $('pops').appendChild(e);setTimeout(()=>e.remove(),1250);
 }
 const fmt=n=>n.toLocaleString('en-GB');
+const clock=s=>Math.floor(s/60)+':'+String(Math.max(0,s)%60).padStart(2,'0');
 function hud(){
-  $('score').textContent=fmt(score);$('life').textContent=fmt(life);
+  $('score').textContent=fmt(score);
   $('down').textContent=fmt(downCount);$('dons').textContent=donCount;
 }
 function comboHud(){
@@ -232,7 +394,7 @@ function damageArea(x,z,R,dmg,fall,burn,donR){
     else{setDamage(b);if(burn)ignite(b,burn)}
   }
   const down=downCount-before;
-  if(down){combo=mult;lastDown=T}
+  if(down){combo=mult;lastDown=T;if(G.stats)G.stats.combo=Math.max(G.stats.combo,mult)}
   fxQ=1;
   const kr=Math.max(R*.85,donR||0);
   for(const d of dons){
@@ -273,7 +435,8 @@ function updateFire(dt){
 }
 // chain: a collapse shakes its neighbours, but neighbours that fall from that do not shake theirs.
 function collapse(b,chain){
-  b.dead=true;b.burn=0;downCount++;
+  b.dead=true;b.burn=0;downCount++;rumble(b.h);
+  if(G.on&&!G.over){const s=G.stats;if(!b.name)s.other++;else s.named.push([b.name,b.x,b.z])}
   sinking.push({b,s0:b.s,s1:Math.min(1,1.3/b.h),t:0,dur:.6+Math.min(.8,b.h/40)});
   const pts=b.pts*mult;addScore(pts);
   if(b.name||fxQ>=1)pop((b.name?b.name+' ':'')+'+'+fmt(pts)+(mult>1?' ×'+mult:''),b.x,Math.min(b.h*.6,20),b.z,b.name?'big':'');
@@ -311,10 +474,19 @@ function donMesh(x,z){
   g.scale.setScalar(2);g.position.set(x,0,z);g.traverse(o=>{o.castShadow=true});scene.add(g);
   return g;
 }
+// Dons that run off are never removed by themselves, so at the cap the runner furthest from the new collapse makes room;
+// otherwise the first part of the map you bomb uses up all the dons.
+const DON_CAP=45;
+function makeRoom(x,z){
+  let fi=-1,fd=-1;
+  for(let i=0;i<dons.length;i++){const d=dons[i];if(d.st!=='run')continue;const dd=(d.x-x)**2+(d.z-z)**2;if(dd>fd){fd=dd;fi=i}}
+  if(fi<0)return false;
+  scene.remove(dons[fi].g);dons.splice(fi,1);return true;
+}
 function spawnDons(b){
-  if(dons.length>45)return;
   const n=b.name?3:1+(rr()<.4?1:0);
   for(let i=0;i<n;i++){
+    if(dons.length>=DON_CAP&&!makeRoom(b.x,b.z))return;
     const vi=((rr()*(b.r.length/2))|0)*2,vx=b.r[vi],vz=b.r[vi+1];
     let dx=vx-b.x,dz=vz-b.z;const l=Math.hypot(dx,dz)||1;
     const px=vx+dx/l*2.5,pz=vz+dz/l*2.5;
@@ -348,7 +520,9 @@ function updateDons(dt){
 const meteorGeo=new THREE.IcosahedronGeometry(2.4,1),meteorMat=new THREE.MeshBasicMaterial({color:0xffb347});
 const nukeMat=new THREE.MeshLambertMaterial({color:0x4a5536});
 function drop(x,z){
-  const W=WEAPONS[wi];if(cds[wi]>0)return;
+  const W=WEAPONS[wi];if(cds[wi]>0||paused||!G.on||G.over)return;
+  G.started=true;
+  G.stats.weapons[W.key]=(G.stats.weapons[W.key]||0)+1;
   cds[wi]=W.cd;x=clamp(x,-MW/2,MW/2);z=clamp(z,-MH/2,MH/2);
   const mk=new THREE.Mesh(markGeo,glow(W.key==='nuke'?0xffd23a:0xff6a3d,.7));mk.material.side=THREE.DoubleSide;
   mk.scale.setScalar(W.R/R_BOMB);mk.rotation.x=-Math.PI/2;mk.position.set(x,.4,z);scene.add(mk);
@@ -486,18 +660,45 @@ const keys=new Set();
 addEventListener('keydown',e=>{
   if(e.code==='KeyM'){toggleMute();return}
   if(e.code==='KeyL'){toggleLabels();return}
+  if(e.code==='KeyN'){toggleMusic();return}
+  if(paused){
+    if(e.code==='Enter'&&!$('guide').hidden)startGame();
+    if(e.code==='Escape'&&!$('info').hidden)closeInfo();
+    return;
+  }
   if(mode==='bomb'){
     if(e.code==='Space'){e.preventDefault();ensureAudio();const g=ground(innerWidth/2,innerHeight/2);if(g)drop(g.x,g.z);return}
     const n=['Digit1','Digit2','Digit3'].indexOf(e.code);if(n>=0){pickWeapon(n);return}
   }else if(mode==='heli'){
-    if(e.code==='Space')e.preventDefault();
-    if(e.code==='KeyE'){ensureAudio();fireMissile();return}
+    if(e.code==='Space'){e.preventDefault();ensureAudio();fireMissile();return}
+    if(e.code==='KeyC'){toggleView();return}
   }
-  keys.add(e.code);
+  keys.add(e.code);keyCap(e.code,true);
 });
-addEventListener('keyup',e=>keys.delete(e.code));
+addEventListener('keyup',e=>{keys.delete(e.code);keyCap(e.code,false)});
+// on-screen keycaps light up with the keyboard; holding one with the mouse does the same as the key
+// The two caps on the screen edges are the turning keys: Q/E in bombing, A/D in the helicopter (whose pad then shows only W/S).
+const KCAPS=['KeyW','KeyA','KeyS','KeyD','KeyR','KeyF'];
+const edgeKey=side=>mode==='heli'?(side?'KeyD':'KeyA'):(side?'KeyE':'KeyQ');
+function keyCap(c,on){
+  const cl=id=>$(id).classList[on?'add':'remove']('on');
+  if(c===edgeKey(0))cl('k-edgeL');else if(c===edgeKey(1))cl('k-edgeR');
+  if(KCAPS.indexOf(c)>=0)cl('k-'+c);
+}
+function holdCap(e,code){
+  let c=null;
+  e.addEventListener('pointerdown',ev=>{ev.preventDefault();c=code();keys.add(c);keyCap(c,true);e.setPointerCapture(ev.pointerId)});
+  for(const t of ['pointerup','pointercancel'])e.addEventListener(t,()=>{if(c){keys.delete(c);keyCap(c,false);c=null}});
+}
+for(const c of KCAPS)holdCap($('k-'+c),()=>c);
+holdCap($('k-edgeL'),()=>edgeKey(0));holdCap($('k-edgeR'),()=>edgeKey(1));
+function edgeCaps(){$('k-edgeL').textContent=edgeKey(0).slice(3);$('k-edgeR').textContent=edgeKey(1).slice(3)}
+// a hidden tab stops the frame loop, and with it the music scheduler, so all the sound pauses with it
+document.addEventListener('visibilitychange',()=>{if(!ac)return;if(document.hidden)ac.suspend();else if(!muted)ac.resume()});
+$('k-KeyL').addEventListener('click',toggleLabels);
 function toggleMute(){muted=!muted;$('mute').textContent=$('hmute').textContent=muted?'Sound off':'Sound on';if(!muted)ensureAudio()}
 $('mute').addEventListener('click',toggleMute);
+$('music').addEventListener('click',toggleMusic);$('hmusic').addEventListener('click',toggleMusic);
 $('lblbtn').addEventListener('click',toggleLabels);$('lblbtn').textContent=labelsOn?'Labels on':'Labels off';
 function reset(){
   bombs.splice(0).forEach(b=>{scene.remove(b.g);scene.remove(b.mk);b.mk.material.dispose()});
@@ -522,7 +723,7 @@ function reset(){
   score=0;downCount=0;donCount=0;hud();
   combo=0;lastDown=-9;comboHud();
 }
-$('rebuild').addEventListener('click',reset);
+$('rebuild').addEventListener('click',()=>playAgain());
 
 function resize(){
   renderer.setSize(innerWidth,innerHeight,false);
@@ -598,6 +799,14 @@ function updateBomb(dt){
   if(keys.has('KeyR'))cam.pitch=Math.min(PITCH_MAX,cam.pitch+.8*dt);
   if(keys.has('KeyF'))cam.pitch=Math.max(PITCH_MIN,cam.pitch-.8*dt);
   comboHud();armHud();
+  // the clock: counts once the first bomb is down and ends the round
+  if(G.on&&G.started&&!G.over){
+    G.t+=dt;
+    if(G.t>=G.limit){G.t=G.limit;G.over=true;G.endT=2;banner("Time's up",fmt(score)+' points')}
+  }
+  if(G.over&&G.endT>0&&(G.endT-=dt)<=0)showSummary("Time's up");
+  const left=Math.ceil(G.limit-G.t);
+  if(G.started&&left!==G.shownLeft){G.shownLeft=left;$('btime').textContent=clock(left)+' left';$('btime').classList[left<=10?'add':'remove']('low')}
   if(fr%20===1){
     let best=null,bd=95*95;
     nearBuildings(cam.tx,cam.tz,95,b=>{if(b.name&&!b.dead){const d=(b.x-cam.tx)**2+(b.z-cam.tz)**2;if(d<bd){bd=d;best=b.name}}});

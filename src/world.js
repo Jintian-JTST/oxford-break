@@ -20,7 +20,7 @@ const scene=new THREE.Scene();
 scene.background=new THREE.Color(SKY);
 scene.fog=new THREE.Fog(SKY,380,1500);
 const camera=new THREE.PerspectiveCamera(45,1,4,3200);
-scene.add(new THREE.HemisphereLight(0xe3ecf5,0x6f7a58,.62));
+const hemi=new THREE.HemisphereLight(0xe3ecf5,0x6f7a58,.62);scene.add(hemi);
 const sunT=new THREE.Object3D();scene.add(sunT);
 const sun=new THREE.DirectionalLight(0xfff0d2,.8);
 const SM=Math.min(innerWidth<700?2048:4096,renderer.capabilities.maxTextureSize);
@@ -45,6 +45,22 @@ const winTex=makeWinTex();
 // triFace keeps every face wound outward, so back faces can be culled; shadows still use both sides as before.
 const bMat=new THREE.MeshLambertMaterial({map:winTex,vertexColors:true});
 bMat.shadowSide=THREE.DoubleSide;
+// Night: a share of the window panes light up. The pane is the dark rectangle of winTex (u .28-.72, v .22-.78 of each tile);
+// whether a pane is lit is a hash of its tile and the wall's position, so neighbouring buildings differ.
+const nightU={value:0};
+bMat.onBeforeCompile=sh=>{
+  sh.uniforms.uNight=nightU;
+  sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWP;')
+    .replace('#include <project_vertex>','#include <project_vertex>\nvWP=(modelMatrix*vec4(transformed,1.)).xyz;');
+  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uNight;\nvarying vec3 vWP;')
+    .replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
+    if(uNight>0.){
+      vec2 f=fract(vUv),cell=floor(vUv)+floor(vWP.xz/9.);
+      float pane=step(.28,f.x)*step(f.x,.72)*step(.22,f.y)*step(f.y,.78);
+      float h=fract(sin(dot(cell,vec2(12.9898,78.233)))*43758.5453);
+      totalEmissiveRadiance+=uNight*pane*step(h,.38)*mix(vec3(1.,.66,.32),vec3(1.,.85,.58),fract(h*7.));
+    }`);
+};
 const gMat=new THREE.MeshLambertMaterial({vertexColors:true});
 
 /* ---------- chunked geometry ---------- */
@@ -563,3 +579,52 @@ function treeVis(tx,tz,dist){
   const lim=dist*1.5+190;
   treeChunks.forEach(tc=>{const v=Math.hypot(tc.cx-tx,tc.cz-tz)<lim;tc.crown.visible=tc.trunk.visible=v});
 }
+
+/* ---------- day and night ---------- */
+// Chosen on the main menu only. Night: dark blue sky and fog, a dim moon (still casting shadows), lit windows and street lamps.
+let night=false,lamps=null;
+const DAY_L={sky:SKY,fog:[380,1500],hs:0xe3ecf5,hg:0x6f7a58,hi:.62,sc:0xfff0d2,si:.8},
+      NIGHT_L={sky:0x0b1426,fog:[260,1200],hs:0x5a6c99,hg:0x1c2030,hi:.42,sc:0xa9bcff,si:.3};
+function setNight(on){
+  night=on;const L=on?NIGHT_L:DAY_L;
+  scene.background.setHex(L.sky);scene.fog.color.setHex(L.sky);scene.fog.near=L.fog[0];scene.fog.far=L.fog[1];
+  hemi.color.setHex(L.hs);hemi.groundColor.setHex(L.hg);hemi.intensity=L.hi;
+  sun.color.setHex(L.sc);sun.intensity=L.si;
+  nightU.value=on?1:0;
+  if(on&&!lamps)buildLamps();
+  if(lamps)lamps.visible=on;
+}
+// Street lamps every 32 m along the roads (not footpaths), on alternating sides: a pole, a glowing head and a pool of light.
+function buildLamps(){
+  const spots=[];
+  for(const [p,w,c] of D.d){
+    if(c<1||c>10)continue;
+    const off=Math.max(w/10,2)/2+1.4;let acc=16,side=1;
+    for(let i=0;i+3<p.length;i+=2){
+      const ax=p[i]/10,az=p[i+1]/10,bx=p[i+2]/10,bz=p[i+3]/10,len=Math.hypot(bx-ax,bz-az);if(len<.01)continue;
+      while(acc<len){
+        const t=acc/len,nx=-(bz-az)/len,nz=(bx-ax)/len,x=ax+(bx-ax)*t+nx*off*side,z=az+(bz-az)*t+nz*off*side;
+        if(!insideAlive(x,z,.5))spots.push(x,z);
+        side=-side;acc+=32;
+      }
+      acc-=len;
+    }
+  }
+  const n=spots.length/2,g=new THREE.Group(),o=new THREE.Object3D();
+  const pole=new THREE.InstancedMesh(new THREE.BoxGeometry(.18,5,.18),new THREE.MeshLambertMaterial({color:0x2a2f38}),n);
+  const head=new THREE.InstancedMesh(new THREE.SphereGeometry(.38,8,6),new THREE.MeshBasicMaterial({color:0xffd9a0}),n);
+  // the pool: a radial gradient on a flat quad, added on top of the ground
+  const c=document.createElement('canvas');c.width=c.height=64;const x2=c.getContext('2d');
+  const gr=x2.createRadialGradient(32,32,0,32,32,32);gr.addColorStop(0,'rgba(255,200,130,.55)');gr.addColorStop(.5,'rgba(255,180,100,.18)');gr.addColorStop(1,'rgba(255,170,90,0)');
+  x2.fillStyle=gr;x2.fillRect(0,0,64,64);
+  const pg=new THREE.PlaneGeometry(18,18);pg.rotateX(-Math.PI/2);
+  const pool=new THREE.InstancedMesh(pg,new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}),n);
+  for(let i=0;i<n;i++){
+    const x=spots[i*2],z=spots[i*2+1];
+    o.position.set(x,2.5,z);o.updateMatrix();pole.setMatrixAt(i,o.matrix);
+    o.position.set(x,5.1,z);o.updateMatrix();head.setMatrixAt(i,o.matrix);
+    o.position.set(x,.3,z);o.updateMatrix();pool.setMatrixAt(i,o.matrix);
+  }
+  g.add(pole,head,pool);scene.add(g);lamps=g;
+}
+
